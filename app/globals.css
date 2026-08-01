@@ -240,3 +240,33 @@ h1, h2, h3, h4, h5, h6 {
   .confirm-btn:hover { filter: brightness(1.1); }
   .confirm-btn:active { transform: scale(0.975); }
 }
+
+/* ── Footer ──────────────────────────────────────────────────────────────────
+   The footer is a deliberate dark anchor in BOTH themes, so it must not use
+   the global tokens — those flip with the theme and, on a permanently dark
+   surface, light mode turned the heading black-on-black and the hairline
+   borders into bright white lines. These stay constant instead. */
+@layer components {
+  .site-footer {
+    --f-bg: #0a0a0a;
+    --f-surface: #16161a;
+    --f-text: #f4f4f5;
+    --f-muted: #9b9ba4;
+    --f-line: rgba(255, 255, 255, 0.09);
+    --f-accent: #ff3b3b;
+
+    background: var(--f-bg);
+    color: var(--f-text);
+    /* Fades in from the page above rather than butting against it with a rule. */
+    border-top: 1px solid var(--f-line);
+  }
+
+  /* Newsletter band: a soft red bloom off the left edge reads as lit, where a
+     flat rgba(255,51,51,0.08) wash just read as muddy brown. */
+  .site-footer .newsletter-band {
+    background:
+      radial-gradient(120% 180% at 8% 50%, rgba(255, 59, 59, 0.16), transparent 62%),
+      #0e0e10;
+    border-bottom: 1px solid var(--f-line);
+  }
+}

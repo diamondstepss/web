@@ -17,22 +17,26 @@ export default function Footer() {
   }
 
   return (
-    <footer style={{ background: '#0a0a0a', borderTop: '1px solid var(--border)' }}>
+    <footer className="site-footer">
       {/* Newsletter band */}
-      <div
-        className="section-pad"
-        style={{ background: 'rgba(255,51,51,0.08)', borderBottom: '1px solid var(--border)' }}
-      >
-        <div className="mx-auto max-w-[1440px] px-6 flex flex-col md:flex-row items-center gap-6 justify-between">
+      {/* Its own padding rather than .section-pad — 96px is tuned for full
+          content sections and left this two-line band mostly empty space. */}
+      <div className="newsletter-band py-12 md:py-14">
+        <div className="mx-auto max-w-[1440px] px-6 flex flex-col md:flex-row items-start md:items-center gap-6 justify-between">
           <div>
             <h3
               className="text-2xl md:text-3xl font-black uppercase tracking-tight"
-              style={{ fontFamily: 'Outfit', color: 'var(--text-primary)', letterSpacing: '-0.02em' }}
+              style={{ fontFamily: 'Outfit', color: 'var(--f-text)', letterSpacing: '-0.02em' }}
             >
               GET FIRST ACCESS
             </h3>
-            <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
+            <p className="mt-1 text-sm" style={{ color: 'var(--f-muted)' }}>
               New drops, exclusive deals, and early access — straight to your inbox.
+            </p>
+            {/* Sits with the copy it belongs to. Centred, it read as an orphan
+                floating between the left heading and the right-hand form. */}
+            <p className="mt-2.5 text-xs" style={{ color: 'var(--f-muted)', opacity: 0.75 }}>
+              By subscribing you agree to our Privacy Policy. Unsubscribe anytime.
             </p>
           </div>
           <form onSubmit={handleNewsletter} className="flex gap-2 w-full md:w-auto">
@@ -44,25 +48,22 @@ export default function Footer() {
               placeholder="Your email address"
               className="flex-1 md:w-64 px-4 py-3 text-sm outline-none"
               style={{
-                background: 'var(--surface)',
-                color: 'var(--text-primary)',
-                border: '1px solid var(--border)',
+                background: 'var(--f-surface)',
+                color: 'var(--f-text)',
+                border: '1px solid var(--f-line)',
                 borderRadius: 'var(--radius-btn)',
               }}
             />
             <button
               type="submit"
               className="px-4 py-3 text-white flex items-center justify-center transition-opacity hover:opacity-90"
-              style={{ background: 'var(--accent)', borderRadius: 'var(--radius-btn)' }}
+              style={{ background: 'var(--f-accent)', borderRadius: 'var(--radius-btn)' }}
               aria-label="Subscribe"
             >
               <Send size={16} />
             </button>
           </form>
         </div>
-        <p className="text-center mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-          By subscribing you agree to our Privacy Policy. Unsubscribe anytime.
-        </p>
       </div>
 
       {/* Main footer */}
@@ -72,7 +73,7 @@ export default function Footer() {
           <div>
             <h4
               className="text-xs font-bold tracking-widest uppercase mb-5"
-              style={{ color: 'var(--text-muted)', fontFamily: 'Outfit' }}
+              style={{ color: 'var(--f-muted)', fontFamily: 'Outfit' }}
             >
               Shop
             </h4>
@@ -91,9 +92,9 @@ export default function Footer() {
                 key={label}
                 href={href}
                 className="block py-1.5 text-sm transition-colors duration-200"
-                style={{ color: 'var(--text-muted)' }}
-                onMouseEnter={(e) => ((e.target as HTMLElement).style.color = 'var(--text-primary)')}
-                onMouseLeave={(e) => ((e.target as HTMLElement).style.color = 'var(--text-muted)')}
+                style={{ color: 'var(--f-muted)' }}
+                onMouseEnter={(e) => ((e.target as HTMLElement).style.color = 'var(--f-text)')}
+                onMouseLeave={(e) => ((e.target as HTMLElement).style.color = 'var(--f-muted)')}
               >
                 {label}
               </Link>
@@ -104,7 +105,7 @@ export default function Footer() {
           <div>
             <h4
               className="text-xs font-bold tracking-widest uppercase mb-5"
-              style={{ color: 'var(--text-muted)', fontFamily: 'Outfit' }}
+              style={{ color: 'var(--f-muted)', fontFamily: 'Outfit' }}
             >
               Help
             </h4>
@@ -119,9 +120,9 @@ export default function Footer() {
                 key={label}
                 href={href}
                 className="block py-1.5 text-sm transition-colors duration-200"
-                style={{ color: 'var(--text-muted)' }}
-                onMouseEnter={(e) => ((e.target as HTMLElement).style.color = 'var(--text-primary)')}
-                onMouseLeave={(e) => ((e.target as HTMLElement).style.color = 'var(--text-muted)')}
+                style={{ color: 'var(--f-muted)' }}
+                onMouseEnter={(e) => ((e.target as HTMLElement).style.color = 'var(--f-text)')}
+                onMouseLeave={(e) => ((e.target as HTMLElement).style.color = 'var(--f-muted)')}
               >
                 {label}
               </Link>
@@ -132,7 +133,7 @@ export default function Footer() {
           <div>
             <h4
               className="text-xs font-bold tracking-widest uppercase mb-5"
-              style={{ color: 'var(--text-muted)', fontFamily: 'Outfit' }}
+              style={{ color: 'var(--f-muted)', fontFamily: 'Outfit' }}
             >
               Company
             </h4>
@@ -146,9 +147,9 @@ export default function Footer() {
                 key={label}
                 href={href}
                 className="block py-1.5 text-sm transition-colors duration-200"
-                style={{ color: 'var(--text-muted)' }}
-                onMouseEnter={(e) => ((e.target as HTMLElement).style.color = 'var(--text-primary)')}
-                onMouseLeave={(e) => ((e.target as HTMLElement).style.color = 'var(--text-muted)')}
+                style={{ color: 'var(--f-muted)' }}
+                onMouseEnter={(e) => ((e.target as HTMLElement).style.color = 'var(--f-text)')}
+                onMouseLeave={(e) => ((e.target as HTMLElement).style.color = 'var(--f-muted)')}
               >
                 {label}
               </Link>
@@ -159,11 +160,11 @@ export default function Footer() {
           <div>
             <h4
               className="text-xs font-bold tracking-widest uppercase mb-5"
-              style={{ color: 'var(--text-muted)', fontFamily: 'Outfit' }}
+              style={{ color: 'var(--f-muted)', fontFamily: 'Outfit' }}
             >
               Contact
             </h4>
-            <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--f-muted)' }}>
               Shop No 3, Main Road, Ladhewali Road
               <br />
               Jalandhar 144007, Punjab, India
@@ -171,22 +172,22 @@ export default function Footer() {
             <a
               href="tel:+917888522353"
               className="block text-sm mb-1 transition-colors duration-200"
-              style={{ color: 'var(--text-muted)' }}
-              onMouseEnter={(e) => ((e.target as HTMLElement).style.color = 'var(--text-primary)')}
-              onMouseLeave={(e) => ((e.target as HTMLElement).style.color = 'var(--text-muted)')}
+              style={{ color: 'var(--f-muted)' }}
+              onMouseEnter={(e) => ((e.target as HTMLElement).style.color = 'var(--f-text)')}
+              onMouseLeave={(e) => ((e.target as HTMLElement).style.color = 'var(--f-muted)')}
             >
               +91 78885 22353
             </a>
             <a
               href="mailto:support@diamondstepss.com"
               className="block text-sm mb-4 transition-colors duration-200"
-              style={{ color: 'var(--text-muted)' }}
-              onMouseEnter={(e) => ((e.target as HTMLElement).style.color = 'var(--text-primary)')}
-              onMouseLeave={(e) => ((e.target as HTMLElement).style.color = 'var(--text-muted)')}
+              style={{ color: 'var(--f-muted)' }}
+              onMouseEnter={(e) => ((e.target as HTMLElement).style.color = 'var(--f-text)')}
+              onMouseLeave={(e) => ((e.target as HTMLElement).style.color = 'var(--f-muted)')}
             >
               support@diamondstepss.com
             </a>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-xs" style={{ color: 'var(--f-muted)' }}>
               Mon–Sat, 10 AM – 7 PM IST
             </p>
 
@@ -197,16 +198,16 @@ export default function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-9 h-9 flex items-center justify-center rounded transition-colors duration-200"
-                style={{ background: 'var(--surface)', color: 'var(--text-muted)' }}
+                style={{ background: 'var(--f-surface)', color: 'var(--f-muted)' }}
                 onMouseEnter={(e) => {
                   const el = e.currentTarget
-                  el.style.background = 'var(--accent)'
+                  el.style.background = 'var(--f-accent)'
                   el.style.color = '#fff'
                 }}
                 onMouseLeave={(e) => {
                   const el = e.currentTarget
-                  el.style.background = 'var(--surface)'
-                  el.style.color = 'var(--text-muted)'
+                  el.style.background = 'var(--f-surface)'
+                  el.style.color = 'var(--f-muted)'
                 }}
                 aria-label="Instagram"
               >
@@ -217,16 +218,16 @@ export default function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-9 h-9 flex items-center justify-center rounded transition-colors duration-200"
-                style={{ background: 'var(--surface)', color: 'var(--text-muted)' }}
+                style={{ background: 'var(--f-surface)', color: 'var(--f-muted)' }}
                 onMouseEnter={(e) => {
                   const el = e.currentTarget
-                  el.style.background = 'var(--accent)'
+                  el.style.background = 'var(--f-accent)'
                   el.style.color = '#fff'
                 }}
                 onMouseLeave={(e) => {
                   const el = e.currentTarget
-                  el.style.background = 'var(--surface)'
-                  el.style.color = 'var(--text-muted)'
+                  el.style.background = 'var(--f-surface)'
+                  el.style.color = 'var(--f-muted)'
                 }}
                 aria-label="Facebook"
               >
@@ -237,7 +238,7 @@ export default function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-9 h-9 flex items-center justify-center rounded transition-colors duration-200"
-                style={{ background: 'var(--surface)', color: 'var(--text-muted)' }}
+                style={{ background: 'var(--f-surface)', color: 'var(--f-muted)' }}
                 onMouseEnter={(e) => {
                   const el = e.currentTarget
                   el.style.background = '#25d366'
@@ -245,8 +246,8 @@ export default function Footer() {
                 }}
                 onMouseLeave={(e) => {
                   const el = e.currentTarget
-                  el.style.background = 'var(--surface)'
-                  el.style.color = 'var(--text-muted)'
+                  el.style.background = 'var(--f-surface)'
+                  el.style.color = 'var(--f-muted)'
                 }}
                 aria-label="WhatsApp"
               >
@@ -257,7 +258,7 @@ export default function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-9 h-9 flex items-center justify-center rounded transition-colors duration-200"
-                style={{ background: 'var(--surface)', color: 'var(--text-muted)' }}
+                style={{ background: 'var(--f-surface)', color: 'var(--f-muted)' }}
                 onMouseEnter={(e) => {
                   const el = e.currentTarget
                   el.style.background = '#4285f4'
@@ -265,8 +266,8 @@ export default function Footer() {
                 }}
                 onMouseLeave={(e) => {
                   const el = e.currentTarget
-                  el.style.background = 'var(--surface)'
-                  el.style.color = 'var(--text-muted)'
+                  el.style.background = 'var(--f-surface)'
+                  el.style.color = 'var(--f-muted)'
                 }}
                 aria-label="Google Maps"
               >
@@ -280,10 +281,10 @@ export default function Footer() {
       {/* Bottom bar */}
       <div
         className="border-t"
-        style={{ borderColor: 'var(--border)' }}
+        style={{ borderColor: 'var(--f-line)' }}
       >
         <div className="mx-auto max-w-[1440px] px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          <p className="text-xs" style={{ color: 'var(--f-muted)' }}>
             © 2026 Diamond Stepss. All rights reserved.
           </p>
           <div className="flex items-center gap-2 flex-wrap justify-center">
