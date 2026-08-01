@@ -1,0 +1,60 @@
+import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
+import { getProducts, getProductBySlug, getProductGallery } from '@/lib/catalog'
+import { SITE } from '@/data/site'
+import ProductPage from '@/components/pages/ProductPage'
+
+/** Pre-render every product at build time — this is the "instant loading" bit. */
+export async function generateStaticParams() {
+  const products = await getProducts()
+  return products.map((p) => ({ slug: p.id }))
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>
+}): Promise<Metadata> {
+  const { slug } = await params
+  const product = await getProductBySlug(slug)
+  if (!product) return { title: 'Product not found' }
+
+  return {
+    title: `${product.brand} ${product.title}`,
+    description: `Buy ${product.brand} ${product.title} at ₹${product.price} (MRP ₹${product.mrp}). 100% genuine, free shipping over ₹${SITE.freeShippingOver}, COD available.`,
+    openGraph: { images: [product.image] },
+  }
+}
+
+export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
+  const product = await getProductBySlug(slug)
+  if (!product) notFound()
+
+  const gallery = await getProductGallery(slug)
+  const all = await getProducts()
+  const related = all.filter((p) => p.id !== product.id).slice(0, 6)
+
+  // Product schema drives rich results in Google — price, availability, rating.
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: `${product.brand} ${product.title}`,
+    image: product.image,
+    brand: { '@type': 'Brand', name: product.brand },
+    offers: {
+      '@type': 'Offer',
+      priceCurrency: 'INR',
+      price: product.price,
+      availability: 'https://schema.org/InStock',
+      seller: { '@type': 'Organization', name: SITE.name },
+    },
+  }
+
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <ProductPage product={product} related={related} gallery={gallery} />
+    </>
+  )
+}

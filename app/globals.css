@@ -1,26 +1,242 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
+/* ── Design tokens ───────────────────────────────────────────────────────────
+   Lifted from the reference site and matched to the Diamond Stepss wordmark.
+   Documented in PLAN.md §3. Never hard-code a hex in a component. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #000000;
+  --surface: #111111;
+  --hover: #1a1a1a;
+  --surface-hover: #1a1a1a;
+  --text-primary: #ffffff;
+  --text-muted: #a0a0a0;
+  --accent: #ff3333;
+  --accent-dark: #cc0000;
+  --border: #333333;
+  --nav-bg: rgba(0, 0, 0, 0.95);
+  --success: #16a34a;
+  --warning: #f59e0b;
+  --danger: #dc2626;
+  --sale: #ff3333;
+  --radius-btn: 8px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+[data-theme='light'] {
+  --bg: #f5f5f5;
+  --surface: #ffffff;
+  --hover: #f0f0f0;
+  --surface-hover: #f0f0f0;
+  --text-primary: #1a1a1a;
+  --text-muted: #666666;
+  --accent: #e02020;
+  --accent-dark: #b01010;
+  --border: #e0e0e0;
+  --nav-bg: rgba(255, 255, 255, 0.95);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* The reset MUST stay inside @layer base. Tailwind v4 emits utilities into
+   @layer utilities, and unlayered CSS beats layered CSS in the cascade — an
+   unlayered `* { margin:0 padding:0 }` silently kills every px-* / mx-* class. */
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
   }
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), 'Inter', sans-serif;
+  background-color: var(--bg);
+  color: var(--text-primary);
+  transition: background-color 0.2s ease, color 0.2s ease;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-outfit), 'Outfit', sans-serif;
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── Motion ──────────────────────────────────────────────────────────────── */
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.marquee-track {
+  animation: marquee 24s linear infinite;
+  white-space: nowrap;
+  display: inline-flex;
+}
+
+.brand-marquee { animation: marquee 30s linear infinite; }
+
+@keyframes slideIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+.slide-in { animation: slideIn 0.25s ease; }
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.slide-up { animation: slideUp 0.25s ease; }
+
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--hover) 50%, var(--surface) 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.product-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+.product-card:hover { transform: translateY(-4px); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4); }
+.product-image { overflow: hidden; }
+.product-image img { transition: transform 0.3s ease; }
+.product-card:hover .product-image img { transform: scale(1.05); }
+
+.video-play-btn { transition: transform 0.2s ease, background 0.2s ease; }
+.video-play-btn:hover { transform: scale(1.1); }
+
+/* ── Layout helpers ──────────────────────────────────────────────────────── */
+.section-pad { padding-top: 96px; padding-bottom: 96px; }
+@media (max-width: 768px) {
+  .section-pad { padding-top: 56px; padding-bottom: 56px; }
+}
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* The wordmark's "Stepss" script is black, so it vanishes on dark. Invert it
+   there until the proper light-on-dark export exists (PLAN.md §0). */
+.dark-invert { filter: invert(1) hue-rotate(180deg); }
+[data-theme='light'] .dark-invert { filter: none; }
+
+/* ── Auth screen motion ──────────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fadeUp .55s cubic-bezier(.22,.61,.36,1) both; }
+
+@keyframes floatY {
+  0%, 100% { transform: translateY(0) rotate(-6deg); }
+  50%      { transform: translateY(-18px) rotate(-4deg); }
+}
+.float-y { animation: floatY 6s ease-in-out infinite; }
+
+@keyframes orbDrift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(28px, -22px) scale(1.12); }
+}
+.orb-drift { animation: orbDrift 11s ease-in-out infinite; }
+
+@keyframes shimmerLine {
+  0%   { background-position: -180% 0; }
+  100% { background-position: 180% 0; }
+}
+.shimmer-line {
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 55%, transparent), transparent);
+  background-size: 180% 100%;
+  animation: shimmerLine 3.2s linear infinite;
+}
+
+/* Float without rotation — for content cards, where a tilt reads as broken. */
+@keyframes floatSoft {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-12px); }
+}
+.float-soft { animation: floatSoft 7s ease-in-out infinite; }
+
+/* ── Cursors ─────────────────────────────────────────────────────────────
+   Tailwind v4's Preflight leaves buttons on `cursor: default`, so anything
+   interactive that isn't an <a> looks unclickable. This lives in @layer base
+   so a `cursor-*` utility (or an inline style) still wins where a component
+   deliberately overrides it — e.g. disabled buttons set `not-allowed`. */
+@layer base {
+  button,
+  [role='button'],
+  summary,
+  select,
+  label[for],
+  input[type='submit'],
+  input[type='button'],
+  input[type='reset'],
+  input[type='checkbox'],
+  input[type='radio'] {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  select:disabled,
+  input:disabled,
+  [aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+
+  /* Text inputs should keep the I-beam, not inherit pointer from a wrapper. */
+  input:not([type='submit']):not([type='button']):not([type='reset']):not([type='checkbox']):not([type='radio']),
+  textarea {
+    cursor: text;
+  }
+}
+
+/* ── Confirmation dialog ─────────────────────────────────────────────────────
+   Shared by the storefront and the admin; the component picks which token set
+   to use. Layered as components so a utility class can still override these —
+   see the cascade note at the top of this file. */
+@layer components {
+  @keyframes confirmBackdropIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .confirm-backdrop { animation: confirmBackdropIn 0.16s ease both; }
+
+  /* Scale from just under 1 — a big pop reads as a toy, a small one as weight. */
+  @keyframes confirmPopIn {
+    from { opacity: 0; transform: translateY(8px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .confirm-pop { animation: confirmPopIn 0.22s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+
+  .confirm-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 36px;
+    padding: 0 16px;
+    font-family: var(--font-outfit), 'Outfit', sans-serif;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: filter 0.15s ease, background 0.15s ease, transform 0.12s ease;
+  }
+  .confirm-btn:hover { filter: brightness(1.1); }
+  .confirm-btn:active { transform: scale(0.975); }
 }

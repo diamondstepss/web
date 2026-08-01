@@ -1,0 +1,401 @@
+/* ── Admin design layer ──────────────────────────────────────────────────────
+   The storefront is a shopfront: big type, big imagery, lots of air. The admin
+   is an instrument — dense, precise, read at speed for hours at a time. It
+   shares the brand's palette and fonts but needs its own surface treatment.
+
+   Everything here is namespaced `adm-` and scoped under `.adm`, so it can never
+   leak into the storefront.
+
+   Loaded by app/(admin)/admin/layout.tsx.
+
+   ── Why everything below sits in @layer components ─────────────────────────
+   Tailwind v4 emits utilities into `@layer utilities`, and UNLAYERED CSS BEATS
+   LAYERED CSS regardless of specificity. An unlayered `.adm-icon-btn {
+   display:flex }` therefore silently overrode `lg:hidden`, leaving the mobile
+   menu buttons visible on desktop. Layering these as components puts them
+   before utilities in the cascade, so a utility can always override them.
+   Same trap as the `* { margin:0 }` reset in globals.css — do not unwrap. */
+
+@layer components {
+
+.adm {
+  /* Deeper than the storefront's pure black so panels can sit *above* the page
+     rather than being outlined against it. */
+  --adm-bg: #0a0a0b;
+  --adm-sidebar: #0d0d0f;
+  --adm-panel: #131316;
+  --adm-panel-hi: #1a1a1e;
+  --adm-inset: #0e0e10;
+
+  /* Hairlines, not 1px solid grey. Translucency keeps them from stacking into
+     heavy grid lines where panels meet. */
+  --adm-line: rgba(255, 255, 255, 0.07);
+  --adm-line-strong: rgba(255, 255, 255, 0.13);
+
+  --adm-text: #f4f4f5;
+  --adm-text-2: #a1a1aa;
+  --adm-text-3: #6b6b74;
+
+  --adm-accent: #ff3b3b;
+  --adm-accent-soft: rgba(255, 59, 59, 0.13);
+  --adm-accent-line: rgba(255, 59, 59, 0.34);
+
+  --adm-ok: #34d399;
+  --adm-warn: #fbbf24;
+  --adm-bad: #f87171;
+  /* --adm-bad is tuned for TEXT contrast on dark; as a button fill it reads
+     washed out. Filled destructive surfaces use this saturated one instead. */
+  --adm-bad-fill: #e5484d;
+
+  /* Ambient + contact shadow. Two layers read as real elevation; one reads as
+     a drop shadow from 2009. */
+  --adm-lift: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.7);
+  --adm-lift-2: 0 2px 4px rgba(0, 0, 0, 0.4), 0 16px 40px -16px rgba(0, 0, 0, 0.8);
+
+  /* A 1px top highlight is what separates "raised panel" from "grey box". */
+  --adm-sheen: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+
+  --adm-r: 14px;
+  --adm-r-sm: 9px;
+
+  background: var(--adm-bg);
+  color: var(--adm-text);
+}
+
+[data-theme='light'] .adm {
+  --adm-bg: #f6f6f4;
+  --adm-sidebar: #fbfbfa;
+  --adm-panel: #ffffff;
+  --adm-panel-hi: #fafafa;
+  --adm-inset: #f4f4f2;
+
+  --adm-line: rgba(0, 0, 0, 0.075);
+  --adm-line-strong: rgba(0, 0, 0, 0.14);
+
+  --adm-text: #18181b;
+  --adm-text-2: #5f5f68;
+  --adm-text-3: #8b8b94;
+
+  --adm-accent: #dc2020;
+  --adm-accent-soft: rgba(220, 32, 32, 0.09);
+  --adm-accent-line: rgba(220, 32, 32, 0.3);
+
+  --adm-ok: #059669;
+  --adm-warn: #d97706;
+  --adm-bad: #dc2626;
+  --adm-bad-fill: #dc2626;
+
+  --adm-lift: 0 1px 2px rgba(0, 0, 0, 0.05), 0 8px 20px -12px rgba(0, 0, 0, 0.16);
+  --adm-lift-2: 0 2px 4px rgba(0, 0, 0, 0.05), 0 16px 36px -16px rgba(0, 0, 0, 0.2);
+  --adm-sheen: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* ── Typography ──────────────────────────────────────────────────────────── */
+
+/* Data must line up column to column — proportional digits make tables jitter. */
+.adm-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'ss01' 1;
+}
+
+.adm-display {
+  font-family: var(--font-outfit), 'Outfit', sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.028em;
+}
+
+/* Section eyebrows. Wide tracking earns its keep only at small sizes. */
+.adm-eyebrow {
+  font-family: var(--font-outfit), 'Outfit', sans-serif;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--adm-text-3);
+}
+
+/* ── Surfaces ────────────────────────────────────────────────────────────── */
+
+.adm-panel {
+  background: var(--adm-panel);
+  border: 1px solid var(--adm-line);
+  border-radius: var(--adm-r);
+  box-shadow: var(--adm-lift), var(--adm-sheen);
+}
+
+/* Interactive cards lift on hover — a small, fast cue that they're clickable. */
+.adm-panel-int {
+  transition: transform 0.18s cubic-bezier(0.22, 0.61, 0.36, 1),
+              box-shadow 0.18s ease,
+              border-color 0.18s ease;
+}
+.adm-panel-int:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--adm-lift-2), var(--adm-sheen);
+  border-color: var(--adm-line-strong);
+}
+
+/* ── Stat tiles ──────────────────────────────────────────────────────────── */
+
+/* A faint radial bloom in the corner gives the tile a light source, which is
+   most of what separates "premium" from "div with a border". */
+.adm-stat {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgba(255, 255, 255, 0.045), transparent 55%),
+    var(--adm-panel);
+}
+[data-theme='light'] .adm-stat {
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgba(0, 0, 0, 0.022), transparent 55%),
+    var(--adm-panel);
+}
+
+/* Hairline rule that fades out — a full-width border would box the number in. */
+.adm-stat::after {
+  content: '';
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--adm-accent-line), transparent 70%);
+  opacity: 0.55;
+}
+
+/* ── Navigation ──────────────────────────────────────────────────────────── */
+
+.adm-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  margin: 1px 8px;
+  border-radius: var(--adm-r-sm);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--adm-text-2);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.adm-nav-item:hover {
+  color: var(--adm-text);
+  background: var(--adm-panel-hi);
+}
+.adm-nav-item[aria-current='page'] {
+  color: var(--adm-text);
+  background: var(--adm-panel);
+  box-shadow: var(--adm-sheen), 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+[data-theme='light'] .adm-nav-item[aria-current='page'] {
+  box-shadow: var(--adm-sheen), 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+/* The accent bar is the only red in the sidebar — it marks exactly one thing. */
+.adm-nav-item[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  translate: 0 -50%;
+  width: 3px;
+  height: 17px;
+  border-radius: 0 3px 3px 0;
+  background: var(--adm-accent);
+  box-shadow: 0 0 10px var(--adm-accent-line);
+}
+.adm-nav-item[aria-current='page'] .adm-nav-icon { color: var(--adm-accent); }
+
+.adm-nav-icon { color: var(--adm-text-3); transition: color 0.15s ease; }
+.adm-nav-item:hover .adm-nav-icon { color: var(--adm-text-2); }
+
+/* ── Controls ────────────────────────────────────────────────────────────── */
+
+.adm-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 11px;
+  font-size: 13px;
+  color: var(--adm-text);
+  background: var(--adm-inset);
+  border: 1px solid var(--adm-line);
+  border-radius: var(--adm-r-sm);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.adm-input::placeholder { color: var(--adm-text-3); }
+.adm-input:hover { border-color: var(--adm-line-strong); }
+.adm-input:focus {
+  border-color: var(--adm-accent-line);
+  background: var(--adm-panel);
+  box-shadow: 0 0 0 3px var(--adm-accent-soft);
+}
+textarea.adm-input { height: auto; padding: 9px 11px; line-height: 1.55; resize: vertical; }
+select.adm-input { appearance: none; padding-right: 30px; }
+
+.adm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 15px;
+  font-family: var(--font-outfit), 'Outfit', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.075em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border-radius: var(--adm-r-sm);
+  transition: background 0.15s ease, border-color 0.15s ease,
+              transform 0.12s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+.adm-btn:active:not(:disabled) { transform: scale(0.975); }
+.adm-btn:disabled { opacity: 0.5; }
+
+.adm-btn-primary {
+  color: #fff;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--adm-accent) 92%, white),
+    var(--adm-accent));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3),
+              inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.adm-btn-primary:hover:not(:disabled) {
+  box-shadow: 0 2px 10px -2px var(--adm-accent-line),
+              inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.adm-btn-ghost {
+  color: var(--adm-text);
+  background: var(--adm-panel);
+  border: 1px solid var(--adm-line);
+  box-shadow: var(--adm-sheen);
+}
+.adm-btn-ghost:hover:not(:disabled) {
+  background: var(--adm-panel-hi);
+  border-color: var(--adm-line-strong);
+}
+
+.adm-btn-quiet { color: var(--adm-text-2); background: transparent; }
+.adm-btn-quiet:hover:not(:disabled) { color: var(--adm-text); background: var(--adm-panel-hi); }
+
+.adm-btn-danger { color: var(--adm-bad); background: transparent; border: 1px solid var(--adm-line); }
+.adm-btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--adm-bad) 12%, transparent);
+  border-color: color-mix(in srgb, var(--adm-bad) 40%, transparent);
+}
+
+/* Small square icon button, for row actions and toolbars. */
+.adm-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  color: var(--adm-text-3);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.adm-icon-btn:hover:not(:disabled) { color: var(--adm-text); background: var(--adm-panel-hi); }
+.adm-icon-btn:disabled { opacity: 0.3; }
+
+/* ── Badges ──────────────────────────────────────────────────────────────── */
+
+.adm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 21px;
+  padding: 0 8px;
+  font-family: var(--font-outfit), 'Outfit', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border-radius: 6px;
+  border: 1px solid transparent;
+}
+.adm-badge-ok   { color: var(--adm-ok);   background: color-mix(in srgb, var(--adm-ok) 13%, transparent);   border-color: color-mix(in srgb, var(--adm-ok) 26%, transparent); }
+.adm-badge-warn { color: var(--adm-warn); background: color-mix(in srgb, var(--adm-warn) 13%, transparent); border-color: color-mix(in srgb, var(--adm-warn) 26%, transparent); }
+.adm-badge-bad  { color: var(--adm-bad);  background: color-mix(in srgb, var(--adm-bad) 13%, transparent);  border-color: color-mix(in srgb, var(--adm-bad) 26%, transparent); }
+.adm-badge-acc  { color: var(--adm-accent); background: var(--adm-accent-soft); border-color: var(--adm-accent-line); }
+.adm-badge-mute { color: var(--adm-text-2); background: var(--adm-panel-hi); border-color: var(--adm-line); }
+
+/* A live dot carries "this is current" better than the word does. */
+.adm-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--adm-ok);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--adm-ok) 20%, transparent);
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────────── */
+
+.adm-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.adm-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 10px 14px;
+  text-align: left;
+  font-family: var(--font-outfit), 'Outfit', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--adm-text-3);
+  background: var(--adm-panel);
+  border-bottom: 1px solid var(--adm-line);
+  white-space: nowrap;
+}
+.adm-table tbody td { padding: 11px 14px; border-bottom: 1px solid var(--adm-line); color: var(--adm-text-2); }
+.adm-table tbody tr { transition: background 0.12s ease; }
+.adm-table tbody tr:hover { background: var(--adm-panel-hi); }
+.adm-table tbody tr:last-child td { border-bottom: none; }
+
+/* ── Page-load reveal ────────────────────────────────────────────────────── */
+
+/* One orchestrated entrance beats a dozen scattered micro-animations. Short
+   distance, short duration — this should register as "settled", not "animated". */
+@keyframes admRise {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.adm-rise { animation: admRise 0.4s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.adm-rise-1 { animation-delay: 0.03s; }
+.adm-rise-2 { animation-delay: 0.07s; }
+.adm-rise-3 { animation-delay: 0.11s; }
+.adm-rise-4 { animation-delay: 0.15s; }
+
+/* ── Charts ──────────────────────────────────────────────────────────────── */
+
+.adm-bar {
+  border-radius: 5px 5px 2px 2px;
+  background: linear-gradient(180deg, var(--adm-accent), color-mix(in srgb, var(--adm-accent) 42%, transparent));
+  transition: height 0.5s cubic-bezier(0.22, 0.61, 0.36, 1), filter 0.15s ease;
+}
+.adm-bar:hover { filter: brightness(1.22); }
+.adm-bar-empty { background: var(--adm-line); border-radius: 3px; }
+
+.adm-meter { height: 6px; border-radius: 99px; background: var(--adm-inset); overflow: hidden; }
+.adm-meter > span { display: block; height: 100%; border-radius: 99px; transition: width 0.55s cubic-bezier(0.22, 0.61, 0.36, 1); }
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+
+.adm ::-webkit-scrollbar { width: 9px; height: 9px; }
+.adm ::-webkit-scrollbar-track { background: transparent; }
+.adm ::-webkit-scrollbar-thumb {
+  background: var(--adm-line-strong);
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.adm ::-webkit-scrollbar-thumb:hover { background: var(--adm-text-3); background-clip: content-box; }
+
+.adm :focus-visible { outline: 2px solid var(--adm-accent); outline-offset: 2px; border-radius: 4px; }
+
+}
