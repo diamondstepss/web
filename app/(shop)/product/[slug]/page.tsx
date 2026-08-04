@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getProducts, getProductBySlug, getProductGallery } from '@/lib/catalog'
 import { SITE } from '@/data/site'
+import { productJsonLd, breadcrumbJsonLd, jsonLdScript } from '@/lib/jsonld'
 import ProductPage from '@/components/pages/ProductPage'
 
 /** Pre-render every product at build time — this is the "instant loading" bit. */
@@ -35,25 +36,30 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
   const all = await getProducts()
   const related = all.filter((p) => p.id !== product.id).slice(0, 6)
 
-  // Product schema drives rich results in Google — price, availability, rating.
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Product',
-    name: `${product.brand} ${product.title}`,
-    image: product.image,
-    brand: { '@type': 'Brand', name: product.brand },
-    offers: {
-      '@type': 'Offer',
-      priceCurrency: 'INR',
-      price: product.price,
-      availability: 'https://schema.org/InStock',
-      seller: { '@type': 'Organization', name: SITE.name },
-    },
-  }
+  const category = product.categories?.[0]
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      {/* Real availability, return policy and shipping — no rating, because the
+          per-product review counts on this page are placeholder content. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(productJsonLd(product, category)) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLdScript(
+            breadcrumbJsonLd([
+              { name: 'Home', path: '/' },
+              ...(category
+                ? [{ name: category.replace(/-/g, ' '), path: `/product-category/${category}` }]
+                : [{ name: 'Shop', path: '/shop' }]),
+              { name: `${product.brand} ${product.title}`, path: `/product/${product.id}` },
+            ]),
+          ),
+        }}
+      />
       <ProductPage product={product} related={related} gallery={gallery} />
     </>
   )

@@ -1,7 +1,9 @@
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
 import CategoryPage from '@/components/pages/CategoryPage'
 import { getProductsByCategory, getProducts } from '@/lib/catalog'
 import { SITE } from '@/data/site'
+import { itemListJsonLd, breadcrumbJsonLd, jsonLdScript } from '@/lib/jsonld'
 
 /**
  * Catch-all so the inherited WooCommerce nesting keeps working:
@@ -50,5 +52,31 @@ export default async function Page({ params }: { params: Promise<{ slug: string[
   // Fall back to the full catalog for virtual categories like /sale or /new-arrivals.
   const scoped = await getProductsByCategory(leaf)
   const products = scoped.length ? scoped : await getProducts()
-  return <CategoryPage products={products} />
+  const label = labelFor(slug)
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(itemListJsonLd(products, label)) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLdScript(
+            breadcrumbJsonLd([
+              { name: 'Home', path: '/' },
+              { name: 'Shop', path: '/shop' },
+              { name: label, path: `/product-category/${slug.join('/')}` },
+            ]),
+          ),
+        }}
+      />
+      {/* The filter sidebar reads useSearchParams, which opts its subtree out
+          of prerendering; the boundary keeps the rest of the page static. */}
+      <Suspense fallback={<div style={{ minHeight: '60vh' }} />}>
+        <CategoryPage products={products} />
+      </Suspense>
+    </>
+  )
 }

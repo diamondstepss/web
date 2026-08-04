@@ -2,71 +2,27 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { SITE } from '@/data/site'
 import {
   Heart,
-  Star,
   Shield,
   RefreshCw,
   Lock,
   ChevronDown,
   ChevronUp,
   Play,
-  CheckCircle,
-  ThumbsUp,
+  Truck,
+  Banknote,
+  RotateCcw,
 } from 'lucide-react'
 import ProductCard from '@/components/ProductCard'
 
 import type { Product } from '@/lib/types'
 import type { MediaSlide } from '@/lib/catalog'
 import { useCart } from '@/context/CartContext'
+import SizeGuideModal from '@/components/SizeGuideModal'
 
-const SIZES = [6, 7, 8, 9, 10, 11]
-const SOLD_OUT_SIZES = [11]
 
-const REVIEWS = [
-  {
-    name: 'Rahul M.',
-    city: 'Pune',
-    rating: 5,
-    date: '12 Jul 2025',
-    size: 'UK 9',
-    comment: 'Exactly as described. 100% genuine. Arrived in 2 days with original box. Highly recommend Diamond Stepss!',
-    helpful: 24,
-  },
-  {
-    name: 'Sneha T.',
-    city: 'Chennai',
-    rating: 4,
-    date: '08 Jul 2025',
-    size: 'UK 7',
-    comment: 'Great shoes, fits perfectly. Only wish they had more colour options. The discount was amazing for this quality.',
-    helpful: 11,
-  },
-  {
-    name: 'Arjun V.',
-    city: 'Hyderabad',
-    rating: 5,
-    date: '01 Jul 2025',
-    size: 'UK 10',
-    comment: 'Ordered COD, no issues. Shoes are genuine — checked the QR code. Super clean pair.',
-    helpful: 18,
-  },
-]
-
-function Stars({ rating, size = 14 }: { rating: number; size?: number }) {
-  return (
-    <div className="flex gap-0.5">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Star
-          key={i}
-          size={size}
-          fill={i <= rating ? 'var(--warning)' : 'none'}
-          color={i <= rating ? 'var(--warning)' : 'var(--text-muted)'}
-        />
-      ))}
-    </div>
-  )
-}
 
 function Accordion({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -106,11 +62,16 @@ export function ProductPage({
   // Footwear must have a size chosen; accessories have none to choose.
   const needsSize = Boolean(incoming?.sizes?.length)
   const [activeThumb, setActiveThumb] = useState(0)
+  const [playing, setPlaying] = useState(false)
   const [selectedSize, setSelectedSize] = useState<number | null>(null)
+  const [sizeGuideOpen, setSizeGuideOpen] = useState(false)
+
+  // Sizes come from the product. They were previously a hardcoded 6–11 with
+  // size 11 always marked sold out, on every product in the catalog.
+  const sizes: number[] = incoming?.sizes?.length ? incoming.sizes : []
+  const outOfStock = typeof incoming?.stock === 'number' && incoming.stock <= 0
   const [qty, setQty] = useState(1)
   const [payMode, setPayMode] = useState(2) // 0=online,1=cod,2=partial
-  const [pincode, setPincode] = useState('')
-  const [pincodeChecked, setPincodeChecked] = useState(false)
   const [wishlisted, setWishlisted] = useState(false)
   const [sizeSheetOpen, setSizeSheetOpen] = useState(false)
   const [added, setAdded] = useState(false)
@@ -138,9 +99,16 @@ export function ProductPage({
         <nav className="flex gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
           <Link href="/" className="hover:text-white">Home</Link>
           <span>/</span>
-          <Link href="/product-category/sneakers" className="hover:text-white">Sneakers</Link>
+          <Link
+            href={`/product-category/${incoming?.categories?.[0] ?? 'sneakers'}`}
+            className="hover:text-white capitalize"
+          >
+            {(incoming?.categories?.[0] ?? 'shop').replace(/-/g, ' ')}
+          </Link>
           <span>/</span>
-          <span style={{ color: 'var(--text-primary)' }}>Nike Air Force 1 Low White</span>
+          <span style={{ color: 'var(--text-primary)' }}>
+            {incoming?.brand} {incoming?.title}
+          </span>
         </nav>
       </div>
 
@@ -154,7 +122,7 @@ export function ProductPage({
               {THUMBNAILS.map((t, i) => (
                 <button
                   key={i}
-                  onClick={() => setActiveThumb(i)}
+                  onClick={() => { setActiveThumb(i); setPlaying(false) }}
                   className="relative w-20 h-20 overflow-hidden shrink-0 border-2 transition-colors duration-200"
                   style={{
                     borderColor: activeThumb === i ? 'var(--accent)' : 'var(--border)',
@@ -187,20 +155,38 @@ export function ProductPage({
               style={{ aspectRatio: '1/1', background: '#111' }}
             >
               {isVideo(THUMBNAILS[activeThumb]) ? (
-                <div className="w-full h-full flex items-center justify-center flex-col gap-4">
-                  <img
-                    src={THUMBNAILS[activeThumb]?.poster ?? ''}
-                    alt=""
-                    className="w-full h-full object-cover opacity-50 absolute inset-0"
+                // Lite facade: the poster and a play button until you ask for
+                // the video, so YouTube's ~1MB player never loads on a page
+                // view that was only ever going to look at photos. The button
+                // previously had no handler at all, so the video never played.
+                playing ? (
+                  <iframe
+                    src={`${THUMBNAILS[activeThumb]?.url}?autoplay=1&rel=0`}
+                    title="Product video"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="absolute inset-0 w-full h-full"
+                    style={{ border: 0 }}
                   />
-                  <button
-                    className="relative z-10 w-20 h-20 flex items-center justify-center rounded-full text-white"
-                    style={{ background: 'var(--accent)' }}
-                    aria-label="Play video"
-                  >
-                    <Play size={28} fill="#fff" />
-                  </button>
-                </div>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center flex-col gap-4">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={THUMBNAILS[activeThumb]?.poster ?? ''}
+                      alt=""
+                      className="w-full h-full object-cover opacity-50 absolute inset-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPlaying(true)}
+                      className="relative z-10 w-20 h-20 flex items-center justify-center rounded-full text-white transition-transform hover:scale-105"
+                      style={{ background: 'var(--accent)' }}
+                      aria-label="Play video"
+                    >
+                      <Play size={28} fill="#fff" />
+                    </button>
+                  </div>
+                )
               ) : (
                 <img
                   src={THUMBNAILS[activeThumb]?.url ?? incoming?.image ?? ''}
@@ -214,7 +200,7 @@ export function ProductPage({
                 {THUMBNAILS.map((_, i) => (
                   <button
                     key={i}
-                    onClick={() => setActiveThumb(i)}
+                    onClick={() => { setActiveThumb(i); setPlaying(false) }}
                     className="w-1.5 h-1.5 rounded-full transition-all"
                     style={{
                       background: activeThumb === i ? '#fff' : 'rgba(255,255,255,0.4)',
@@ -233,22 +219,15 @@ export function ProductPage({
               className="text-xs font-bold uppercase tracking-widest mb-1"
               style={{ color: 'var(--text-muted)' }}
             >
-              NIKE
+              {incoming?.brand}
             </p>
             <h1
               className="text-2xl md:text-3xl font-black uppercase leading-tight mb-3"
               style={{ fontFamily: 'Outfit', color: 'var(--text-primary)', letterSpacing: '-0.02em' }}
             >
-              Air Force 1 Low White
+              {incoming?.title}
             </h1>
 
-            {/* Rating */}
-            <div className="flex items-center gap-3 mb-4">
-              <Stars rating={5} />
-              <a href="#reviews" className="text-sm underline" style={{ color: 'var(--text-muted)' }}>
-                128 reviews
-              </a>
-            </div>
 
             {/* Price */}
             <div className="mb-1">
@@ -274,13 +253,18 @@ export function ProductPage({
                 <span className="text-xs font-bold tracking-widest uppercase" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit' }}>
                   SELECT SIZE
                 </span>
-                <button className="text-xs font-bold underline" style={{ color: 'var(--accent)' }}>
+                <button
+                  type="button"
+                  onClick={() => setSizeGuideOpen(true)}
+                  className="text-xs font-bold underline"
+                  style={{ color: 'var(--accent)' }}
+                >
                   SIZE GUIDE
                 </button>
               </div>
               <div className="flex flex-wrap gap-2">
-                {SIZES.map((s) => {
-                  const soldOut = SOLD_OUT_SIZES.includes(s)
+                {sizes.map((s) => {
+                  const soldOut = outOfStock
                   return (
                     <button
                       key={s}
@@ -309,9 +293,13 @@ export function ProductPage({
                   )
                 })}
               </div>
-              <p className="mt-2 text-xs font-medium" style={{ color: 'var(--warning)' }}>
-                ⚠ Only 2 left in UK 9
-              </p>
+              {/* Real stock. The previous line hardcoded "Only 2 left in UK 9"
+                  on every product regardless of what was actually on hand. */}
+              {typeof incoming?.stock === 'number' && incoming.stock > 0 && incoming.stock <= 5 && (
+                <p className="mt-2 text-xs font-medium" style={{ color: 'var(--warning)' }}>
+                  ⚠ Only {incoming.stock} left in stock
+                </p>
+              )}
             </div>
 
             {/* Quantity stepper */}
@@ -385,48 +373,40 @@ export function ProductPage({
               </button>
             </div>
 
-            {/* Pincode checker */}
+            {/*
+              Delivery terms.
+
+              This was a pincode "checker" that returned a hardcoded
+              "Delivery by Tue, 30 Jul" for any six digits — a date already in
+              the past, promised for pincodes the shop may not even serve.
+              A real check needs Shiprocket's serviceability API; until those
+              credentials exist, state only what is actually true.
+            */}
             <div
               className="p-4 mb-5"
               style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
             >
               <p className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)', fontFamily: 'Outfit' }}>
-                DELIVERY OPTIONS
+                DELIVERY
               </p>
-              {pincodeChecked ? (
-                <div className="flex items-start gap-2">
-                  <CheckCircle size={16} style={{ color: 'var(--success)', flexShrink: 0, marginTop: 2 }} />
-                  <div className="text-sm" style={{ color: 'var(--text-primary)' }}>
-                    <strong>Delivery by Tue, 30 Jul</strong>
-                    <br />
-                    <span style={{ color: 'var(--text-muted)' }}>COD available · Free shipping</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    maxLength={6}
-                    placeholder="Enter pincode"
-                    value={pincode}
-                    onChange={(e) => setPincode(e.target.value.replace(/\D/g, ''))}
-                    className="flex-1 px-3 py-2 text-sm outline-none"
-                    style={{
-                      background: 'var(--bg)',
-                      border: '1px solid var(--border)',
-                      color: 'var(--text-primary)',
-                      borderRadius: 'var(--radius-btn)',
-                    }}
-                  />
-                  <button
-                    onClick={() => pincode.length === 6 && setPincodeChecked(true)}
-                    className="px-4 py-2 text-sm font-bold text-white"
-                    style={{ background: 'var(--accent)', borderRadius: 'var(--radius-btn)' }}
-                  >
-                    CHECK
-                  </button>
-                </div>
-              )}
+              <ul className="space-y-2">
+                {[
+                  [Truck, `Free shipping on orders over ₹${SITE.freeShippingOver}`],
+                  [Banknote, 'Cash on delivery available across India'],
+                  [RotateCcw, '7-day easy returns'],
+                ].map(([Icon, label]) => {
+                  const I = Icon as typeof Truck
+                  return (
+                    <li key={String(label)} className="flex items-start gap-2.5 text-sm" style={{ color: 'var(--text-primary)' }}>
+                      <I size={15} style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 2 }} />
+                      {label as string}
+                    </li>
+                  )
+                })}
+              </ul>
+              <p className="text-xs mt-3 pt-3" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                Dispatched from Jalandhar. You will get a tracking link by email once it ships.
+              </p>
             </div>
 
             {/* Payment options */}
@@ -546,79 +526,17 @@ export function ProductPage({
           </div>
         </div>
 
-        {/* ── REVIEWS ──────────────────────────────────────────────────── */}
-        <div id="reviews" className="mt-16">
-          <h2
-            className="text-2xl font-black uppercase tracking-tight mb-8"
-            style={{ fontFamily: 'Outfit', color: 'var(--text-primary)', letterSpacing: '-0.02em' }}
-          >
-            CUSTOMER REVIEWS
-          </h2>
+        {/*
+          Product reviews are not shown.
 
-          {/* Rating summary */}
-          <div className="flex flex-col sm:flex-row gap-8 mb-10">
-            <div className="text-center">
-              <div className="text-6xl font-black" style={{ color: 'var(--text-primary)', fontFamily: 'Outfit' }}>
-                4.6
-              </div>
-              <Stars rating={5} size={20} />
-              <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>128 reviews</p>
-            </div>
-            <div className="flex-1 space-y-2">
-              {[
-                { stars: 5, pct: 72 },
-                { stars: 4, pct: 18 },
-                { stars: 3, pct: 6 },
-                { stars: 2, pct: 2 },
-                { stars: 1, pct: 2 },
-              ].map((r) => (
-                <div key={r.stars} className="flex items-center gap-3">
-                  <span className="text-xs w-4" style={{ color: 'var(--text-muted)' }}>{r.stars}</span>
-                  <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
-                    <div
-                      className="h-full rounded-full"
-                      style={{ width: `${r.pct}%`, background: 'var(--warning)' }}
-                    />
-                  </div>
-                  <span className="text-xs w-8" style={{ color: 'var(--text-muted)' }}>{r.pct}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          This block previously rendered an invented 4.6 rating, "128 reviews"
+          and three written reviews — identical on every product in the catalog,
+          for products that have never been reviewed. Real per-product reviews
+          need a reviews table fed by verified purchases; until then, showing
+          nothing is the honest option.
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {REVIEWS.map((r) => (
-              <div
-                key={r.name}
-                className="p-5"
-                style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <Stars rating={r.rating} />
-                      <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--success)' }}>
-                        <CheckCircle size={11} /> Verified
-                      </span>
-                    </div>
-                    <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                      {r.name}, {r.city}
-                    </p>
-                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                      {r.date} · Size: {r.size}
-                    </p>
-                  </div>
-                </div>
-                <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-primary)' }}>
-                  "{r.comment}"
-                </p>
-                <button className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                  <ThumbsUp size={12} /> Helpful ({r.helpful})
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+          The shop's genuine Google reviews are on the homepage.
+        */}
 
         {/* ── YOU MAY ALSO LIKE ─────────────────────────────────────────── */}
         <div className="mt-16">
@@ -674,7 +592,7 @@ export function ProductPage({
               SELECT SIZE (UK)
             </h3>
             <div className="grid grid-cols-6 gap-2 mb-6">
-              {SIZES.map((s) => (
+              {sizes.map((s) => (
                 <button
                   key={s}
                   onClick={() => setSelectedSize(s)}
@@ -700,6 +618,12 @@ export function ProductPage({
           </div>
         </div>
       )}
+
+      <SizeGuideModal
+        open={sizeGuideOpen}
+        onClose={() => setSizeGuideOpen(false)}
+        availableSizes={sizes}
+      />
     </div>
   )
 }

@@ -14,86 +14,20 @@ import {
 } from 'lucide-react'
 import PageHero from '@/components/PageHero'
 import { SITE } from '@/data/site'
+import { FAQ_GROUPS } from '@/data/faq'
 
-const GROUPS = [
-  {
-    id: 'payment',
-    icon: CreditCard,
-    group: 'Orders & Payment',
-    items: [
-      {
-        q: 'Which payment methods do you accept?',
-        a: 'UPI (GPay, PhonePe, Paytm), credit and debit cards, net banking, and wallets — all processed securely by Cashfree. Cash on Delivery is available too.',
-      },
-      {
-        q: 'What is Partial COD?',
-        a: `Partial COD lets you pay a small advance of ₹${SITE.partialCodAdvance} online and the balance in cash on delivery. The advance covers shipping and is non-refundable if you refuse the parcel at the door.`,
-      },
-      {
-        q: 'Is there a discount for paying online?',
-        a: `Yes — prepaid orders get an extra ${SITE.prepaidDiscountPct}% off, and you skip the ₹${SITE.codFee} COD handling fee. It is the cheapest way to order.`,
-      },
-      {
-        q: 'Can I cancel after ordering?',
-        a: 'Yes, any time before dispatch, from your account or by WhatsApp. Once the parcel is handed to the courier it has to go through the returns process instead.',
-      },
-    ],
-  },
-  {
-    id: 'shipping',
-    icon: Truck,
-    group: 'Shipping & Delivery',
-    items: [
-      {
-        q: 'How long will delivery take?',
-        a: `Typically ${SITE.deliveryDays} from dispatch. We ship from Jalandhar and cover every serviceable pincode in India. Enter your pincode on any product page for an exact estimate.`,
-      },
-      {
-        q: 'How much is shipping?',
-        a: `Free on orders over ₹${SITE.freeShippingOver}. Below that, a flat ₹99 applies and is always shown in the cart before you pay.`,
-      },
-      {
-        q: 'How do I track my order?',
-        a: 'You get an SMS and WhatsApp with a tracking link as soon as the courier collects your parcel. You can also track it from your account, or from the Track Order page using your order number and phone.',
-      },
-    ],
-  },
-  {
-    id: 'sizing',
-    icon: Ruler,
-    group: 'Sizing & Returns',
-    items: [
-      {
-        q: 'Which size should I order?',
-        a: 'We list everything in UK sizes 6 to 11. The Size Guide has a UK/EU/US/cm conversion table and instructions for measuring your foot at home. If you are between sizes, size up.',
-      },
-      {
-        q: 'How do I return or exchange something?',
-        a: `Raise a request from your account within ${SITE.returnWindowDays} days of delivery. We arrange a free pickup, run a quick quality check, and then ship your exchange or issue a refund in 5–7 working days.`,
-      },
-      {
-        q: 'What condition must a return be in?',
-        a: 'Unworn and unwashed, with all tags attached and in the original box. Try shoes on indoors, on a clean surface — visible sole wear means we cannot accept the return.',
-      },
-    ],
-  },
-  {
-    id: 'authenticity',
-    icon: ShieldCheck,
-    group: 'Authenticity',
-    items: [
-      {
-        q: 'Are your products 100% genuine?',
-        a: 'Yes. We source through authorised channels only. Every product arrives in original packaging with tags intact.',
-      },
-      {
-        q: 'Do you have a physical store?',
-        a: `Yes — ${SITE.address.line1}, ${SITE.address.city}. Open ${SITE.hours}. You're welcome to try before you buy.`,
-      },
-    ],
-  },
-]
+/** Icons are presentation, so they stay here and are matched by group id. */
+const ICONS: Record<string, typeof CreditCard> = {
+  payment: CreditCard,
+  shipping: Truck,
+  sizing: Ruler,
+  authenticity: ShieldCheck,
+}
 
+const GROUPS = FAQ_GROUPS.map((g) => ({ ...g, icon: ICONS[g.id] ?? CreditCard }))
+
+// Exported so the route can build FAQPage structured data from the same
+// source the page renders — the two can never drift apart.
 export function FAQPage() {
   const [open, setOpen] = useState<string | null>('payment-0')
   const [active, setActive] = useState('payment')

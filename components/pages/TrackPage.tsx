@@ -13,6 +13,7 @@ import {
   ArrowRight,
   Search,
   Loader2,
+  Check,
 } from 'lucide-react'
 import { SITE } from '@/data/site'
 
@@ -27,11 +28,11 @@ const TIMELINE = [
 export function TrackPage() {
   const [orderNum, setOrderNum] = useState('')
   const [phone, setPhone] = useState('')
-  const [tracked, setTracked] = useState(false)
+  const [order, setOrder] = useState<TrackedOrder | null>(null)
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [lookupError, setLookupError] = useState<string | null>(null)
 
-  const awb = '7712 0043 9981'
   const ready = orderNum.trim() && phone.trim()
 
   const field = {
@@ -43,15 +44,32 @@ export function TrackPage() {
     transition: 'border-color .2s ease',
   } as const
 
-  const submit = (e: React.FormEvent) => {
+  /**
+   * Looks the order up for real. This previously waited 700ms and then showed
+   * a fabricated order number, courier and AWB for any input at all.
+   */
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!ready) return
+    if (!ready || busy) return
     setBusy(true)
-    // Stands in for the Shiprocket lookup until checkout creates real orders.
-    setTimeout(() => {
+    setLookupError(null)
+    try {
+      const res = await fetch('/api/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderNumber: orderNum.trim(), phone: phone.trim() }),
+      })
+      const data = (await res.json()) as { ok?: boolean; order?: TrackedOrder; error?: string }
+      if (!res.ok || !data.ok || !data.order) {
+        setLookupError(data.error ?? 'Could not find that order.')
+        return
+      }
+      setOrder(data.order)
+    } catch {
+      setLookupError('Check your connection and try again.')
+    } finally {
       setBusy(false)
-      setTracked(true)
-    }, 700)
+    }
   }
 
   return (
@@ -203,6 +221,22 @@ export function TrackPage() {
                 </button>
               </div>
 
+              {/* A failed lookup must say so, not silently do nothing. */}
+              {lookupError && (
+                <p
+                  role="alert"
+                  className="mt-4 text-sm px-4 py-3"
+                  style={{
+                    background: 'color-mix(in srgb, var(--danger) 12%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--danger) 28%, transparent)',
+                    color: 'var(--danger)',
+                    borderRadius: 12,
+                  }}
+                >
+                  {lookupError}
+                </p>
+              )}
+
               <p className="mt-5 text-xs text-center" style={{ color: 'var(--text-muted)' }}>
                 Have an account?{' '}
                 <Link href="/my-account" style={{ color: 'var(--accent)', fontWeight: 700 }}>
@@ -214,19 +248,19 @@ export function TrackPage() {
 
           {/* ── Right: live tracking card ──────────────────────────── */}
           <div className="relative fade-up" style={{ animationDelay: '.24s' }}>
-            {!tracked ? (
+            {!order ? (
               <PreviewCard />
             ) : (
               <ResultCard
-                orderNum={orderNum || 'DS-2026-004756'}
-                awb={awb}
+                order={order}
                 copied={copied}
                 onCopy={() => {
-                  navigator.clipboard?.writeText(awb.replace(/\s/g, ''))
+                  if (!order.awb) return
+                  navigator.clipboard?.writeText(order.awb.replace(/\s/g, ''))
                   setCopied(true)
                   setTimeout(() => setCopied(false), 1600)
                 }}
-                onReset={() => setTracked(false)}
+                onReset={() => { setOrder(null); setLookupError(null) }}
               />
             )}
           </div>
@@ -397,19 +431,63 @@ function PreviewCard() {
   )
 }
 
+/** Status → where it sits on the journey, and how to describe it. */
+const STATUS_STEPS = ['CONFIRMED', 'PACKED', 'SHIPPED', 'DELIVERED'] as const
+
+const STATUS_LABEL: Record<string, string> = {
+  PENDING: 'Awaiting payment',
+  CONFIRMED: 'Order confirmed',
+  PACKED: 'Packed',
+  SHIPPED: 'In transit',
+  DELIVERED: 'Delivered',
+  CANCELLED: 'Cancelled',
+}
+
+const STATUS_TINT: Record<string, string> = {
+  PENDING: 'var(--warning)',
+  CONFIRMED: 'var(--warning)',
+  PACKED: '#3b82f6',
+  SHIPPED: '#3b82f6',
+  DELIVERED: 'var(--success)',
+  CANCELLED: 'var(--danger)',
+}
+
+export interface TrackedOrder {
+  orderNumber: string
+  status: string
+  paymentStatus: string
+  paymentMode: string
+  placedAt: string
+  awb: string | null
+  courier: string | null
+  total: number
+  dueOnDelivery: number
+  city: string | null
+}
+
+/**
+ * Shows the real order.
+ *
+ * Every value here previously came from a hardcoded constant — order date,
+ * courier "Bluedart", an invented AWB, an "Expected 23 Jul 2026" and a full
+ * fake timeline — displayed for any input at all. Anything the database does
+ * not know is now shown as pending rather than filled in with a plausible guess.
+ */
 function ResultCard({
-  orderNum,
-  awb,
+  order,
   copied,
   onCopy,
   onReset,
 }: {
-  orderNum: string
-  awb: string
+  order: TrackedOrder
   copied: boolean
   onCopy: () => void
   onReset: () => void
 }) {
+  const inr = (n: number) => `₹${Number(n).toLocaleString('en-IN')}`
+  const stepIndex = STATUS_STEPS.indexOf(order.status as (typeof STATUS_STEPS)[number])
+  const cancelled = order.status === 'CANCELLED'
+
   return (
     <div
       className="fade-up overflow-hidden"
@@ -429,37 +507,51 @@ function ResultCard({
             className="text-base font-black"
             style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-outfit)', letterSpacing: '-0.02em' }}
           >
-            #{orderNum}
+            #{order.orderNumber}
           </p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            Placed 20 Jul 2026 · Partial COD
+            Placed{' '}
+            {new Date(order.placedAt).toLocaleDateString('en-IN', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            })}{' '}
+            · {order.paymentMode.replace(/_/g, ' ').toLowerCase()}
           </p>
         </div>
         <span
           className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-white"
-          style={{ background: '#3b82f6', borderRadius: 99, fontFamily: 'var(--font-outfit)' }}
+          style={{ background: STATUS_TINT[order.status] ?? 'var(--text-muted)', borderRadius: 99, fontFamily: 'var(--font-outfit)' }}
         >
-          <Truck size={12} /> In transit
+          <Truck size={12} /> {STATUS_LABEL[order.status] ?? order.status}
         </span>
       </div>
 
       <div className="px-6 py-5 flex flex-wrap gap-6" style={{ borderBottom: '1px solid var(--border)' }}>
-        {[
-          ['Courier', 'Bluedart'],
-          ['Expected', '23 Jul 2026'],
-        ].map(([k, v]) => (
-          <div key={k}>
-            <p
-              className="text-[11px] font-black uppercase tracking-widest mb-1"
-              style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-outfit)' }}
-            >
-              {k}
-            </p>
-            <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-              {v}
-            </p>
-          </div>
-        ))}
+        <div>
+          <p
+            className="text-[11px] font-black uppercase tracking-widest mb-1"
+            style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-outfit)' }}
+          >
+            Courier
+          </p>
+          <p className="text-sm font-bold" style={{ color: order.courier ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+            {order.courier ?? 'Assigned when dispatched'}
+          </p>
+        </div>
+
+        <div>
+          <p
+            className="text-[11px] font-black uppercase tracking-widest mb-1"
+            style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-outfit)' }}
+          >
+            {order.dueOnDelivery > 0 ? 'Due on delivery' : 'Order total'}
+          </p>
+          <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+            {order.dueOnDelivery > 0 ? inr(order.dueOnDelivery) : inr(order.total)}
+          </p>
+        </div>
+
         <div>
           <p
             className="text-[11px] font-black uppercase tracking-widest mb-1"
@@ -467,99 +559,76 @@ function ResultCard({
           >
             AWB
           </p>
-          <button onClick={onCopy} className="flex items-center gap-2 text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-            {awb}
-            <Copy size={13} style={{ color: copied ? 'var(--success)' : 'var(--accent)' }} />
-            {copied && (
-              <span className="text-xs font-bold" style={{ color: 'var(--success)' }}>
-                Copied
-              </span>
-            )}
-          </button>
+          {order.awb ? (
+            <button onClick={onCopy} className="flex items-center gap-2 text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+              {order.awb}
+              {copied ? <Check size={13} style={{ color: 'var(--success)' }} /> : <Copy size={13} style={{ color: 'var(--text-muted)' }} />}
+            </button>
+          ) : (
+            <p className="text-sm font-bold" style={{ color: 'var(--text-muted)' }}>
+              Not yet dispatched
+            </p>
+          )}
         </div>
       </div>
 
+      {/* Progress. Only steps the order has actually reached are marked done. */}
       <div className="px-6 py-6">
-        {TIMELINE.map((t, i) => {
-          const last = i === TIMELINE.length - 1
-          return (
-            <div key={t.label} className="flex gap-4">
-              <div className="flex flex-col items-center shrink-0">
-                <span
-                  className="flex items-center justify-center rounded-full"
-                  style={{ width: 26, height: 26, background: t.done ? 'var(--accent)' : 'var(--border)' }}
-                >
-                  {t.done ? (
-                    <CheckCircle2 size={14} color="#fff" />
-                  ) : (
-                    <Package size={13} style={{ color: 'var(--text-muted)' }} />
-                  )}
-                </span>
-                {!last && (
-                  <span
-                    style={{
-                      width: 2,
-                      flex: 1,
-                      minHeight: 32,
-                      background: TIMELINE[i + 1].done ? 'var(--accent)' : 'var(--border)',
-                    }}
-                  />
-                )}
-              </div>
-              <div className={last ? '' : 'pb-6'}>
-                <p
-                  className="text-sm font-black uppercase tracking-wide"
-                  style={{
-                    color: t.done ? 'var(--text-primary)' : 'var(--text-muted)',
-                    fontFamily: 'var(--font-outfit)',
-                  }}
-                >
-                  {t.label}
-                </p>
-                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                  {t.detail}
-                </p>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)', opacity: 0.7 }}>
-                  {t.at}
-                </p>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      <div
-        className="px-6 py-5 flex flex-wrap items-center gap-4"
-        style={{ borderTop: '1px solid var(--border)', background: 'var(--hover)' }}
-      >
-        <div className="flex items-start gap-2 flex-1 min-w-[200px]">
-          <MapPin size={15} style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 2 }} />
-          <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-            Delivering to
-            <br />
-            <span style={{ color: 'var(--text-primary)' }}>
-              204, Green Enclave, Model Town Road, Jalandhar 144003
-            </span>
+        {cancelled ? (
+          <p className="text-sm" style={{ color: 'var(--danger)' }}>
+            This order was cancelled. If that looks wrong, message us on WhatsApp and we will check.
           </p>
-        </div>
-        <a
-          href={SITE.social.whatsapp}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 px-5 py-2.5 text-[11px] font-black uppercase tracking-widest text-white"
-          style={{ background: '#25d366', borderRadius: 99, fontFamily: 'var(--font-outfit)' }}
-        >
-          <MessageCircle size={14} /> Get help
-        </a>
+        ) : (
+          <ol className="space-y-4">
+            {STATUS_STEPS.map((step, i) => {
+              const done = stepIndex >= i
+              const current = stepIndex === i
+              return (
+                <li key={step} className="flex gap-3.5 items-start">
+                  <span
+                    className="flex items-center justify-center shrink-0"
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: 99,
+                      marginTop: 1,
+                      background: done ? 'var(--accent)' : 'transparent',
+                      border: `1.5px solid ${done ? 'var(--accent)' : 'var(--border)'}`,
+                      color: '#fff',
+                    }}
+                  >
+                    {done && <Check size={12} strokeWidth={3} />}
+                  </span>
+                  <span>
+                    <span
+                      className="block text-sm font-bold"
+                      style={{ color: done ? 'var(--text-primary)' : 'var(--text-muted)' }}
+                    >
+                      {STATUS_LABEL[step]}
+                    </span>
+                    {current && (
+                      <span className="block text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                        Current status
+                        {order.city ? ` · heading to ${order.city}` : ''}
+                      </span>
+                    )}
+                  </span>
+                </li>
+              )
+            })}
+          </ol>
+        )}
       </div>
 
-      <button
-        onClick={onReset}
-        className="w-full py-4 text-[11px] font-black uppercase tracking-widest"
-        style={{ color: 'var(--accent)', fontFamily: 'var(--font-outfit)', borderTop: '1px solid var(--border)' }}
-      >
-        Track another order
-      </button>
+      <div className="px-6 py-4" style={{ borderTop: '1px solid var(--border)' }}>
+        <button
+          onClick={onReset}
+          className="text-xs font-black uppercase tracking-widest"
+          style={{ color: 'var(--accent)', fontFamily: 'var(--font-outfit)' }}
+        >
+          Track another order
+        </button>
+      </div>
     </div>
   )
 }

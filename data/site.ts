@@ -19,7 +19,24 @@ export const SITE = {
     pincode: '144007',
     country: 'India',
   },
+
+  /**
+   * Shop coordinates, read from the Google Maps listing linked in `social.maps`.
+   * Local structured data without geo makes Google infer the location from the
+   * address string, which is far less reliable for map-pack matching.
+   */
+  geo: { lat: 31.3251374, lng: 75.6192064 },
+
   hours: 'Monday–Saturday, 10 AM – 7 PM IST',
+  /** Machine-readable opening hours, mirroring `hours` above. */
+  openDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as string[],
+  opens: '10:00',
+  closes: '19:00',
+
+  /** Where the shop actually delivers — used for areaServed. */
+  servesCity: 'Jalandhar',
+  servesRegion: 'Punjab',
+  servesCountry: 'India',
 
   social: {
     instagram: 'https://www.instagram.com/diamond_stepss/',
@@ -36,7 +53,13 @@ export const SITE = {
   returnWindowDays: 7,
   deliveryDays: '2–5 business days',
 
-  gstin: null as string | null, // not yet supplied — invoice template uses a placeholder
+  /**
+   * Deliberately null: the business is below the GST registration threshold and
+   * is not registered, so it cannot charge or collect GST. Nothing on the site
+   * may state or imply that prices include GST, and invoices must not show a
+   * GSTIN or a tax line.
+   */
+  gstin: null as string | null,
 } as const
 
 export const ADDRESS_ONE_LINE = `${SITE.address.line1}, ${SITE.address.city} ${SITE.address.pincode}, ${SITE.address.state}, ${SITE.address.country}`

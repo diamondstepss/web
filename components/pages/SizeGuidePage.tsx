@@ -5,25 +5,8 @@ import Link from 'next/link'
 import { Ruler, Footprints, Clock, MessageCircle } from 'lucide-react'
 import PageHero from '@/components/PageHero'
 import { SITE } from '@/data/site'
-
-/** UK is our master scale — every product is listed in UK sizes. */
-const MENS = [
-  { uk: '6', eu: '39', us: '7', cm: '24.5' },
-  { uk: '7', eu: '40.5', us: '8', cm: '25.4' },
-  { uk: '8', eu: '42', us: '9', cm: '26.2' },
-  { uk: '9', eu: '43', us: '10', cm: '27.1' },
-  { uk: '10', eu: '44.5', us: '11', cm: '28.0' },
-  { uk: '11', eu: '46', us: '12', cm: '28.8' },
-]
-
-const WOMENS = [
-  { uk: '3', eu: '36', us: '5', cm: '22.5' },
-  { uk: '4', eu: '37', us: '6', cm: '23.4' },
-  { uk: '5', eu: '38', us: '7', cm: '24.1' },
-  { uk: '6', eu: '39', us: '8', cm: '25.0' },
-  { uk: '7', eu: '40.5', us: '9', cm: '25.9' },
-  { uk: '8', eu: '42', us: '10', cm: '26.7' },
-]
+// Shared with the product-page modal so the two charts can never disagree.
+import { MENS_SIZES as MENS, WOMENS_SIZES as WOMENS } from '@/data/sizes'
 
 const STEPS = [
   {

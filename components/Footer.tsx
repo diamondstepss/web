@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { MapPin, MessageCircle, Send } from 'lucide-react'
+import { MapPin, MessageCircle, Send, Loader2, Check } from 'lucide-react'
 import { useState } from 'react'
 import { SITE } from '@/data/site'
 import { InstagramIcon, FacebookIcon, WhatsAppIcon, GoogleMapsIcon } from '@/components/SocialIcons'
@@ -9,11 +9,38 @@ import { PAYMENT_MARKS } from '@/components/PaymentIcons'
 
 export default function Footer() {
   const [email, setEmail] = useState('')
+  const [state, setState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle')
+  const [note, setNote] = useState('')
 
-  const handleNewsletter = (e: React.FormEvent) => {
+  /**
+   * Previously this only ran `alert('Thanks for subscribing!')` and stored
+   * nothing, so every address entered was lost. It now posts to the API and
+   * reports failure honestly rather than always claiming success.
+   */
+  const handleNewsletter = async (e: React.FormEvent) => {
     e.preventDefault()
-    setEmail('')
-    alert('Thanks for subscribing!')
+    if (state === 'busy') return
+    setState('busy')
+    setNote('')
+    try {
+      const res = await fetch('/api/newsletter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, source: 'footer' }),
+      })
+      const data = (await res.json()) as { ok?: boolean; alreadySubscribed?: boolean; error?: string }
+      if (!res.ok || !data.ok) {
+        setState('error')
+        setNote(data.error ?? 'We could not sign you up just now.')
+        return
+      }
+      setState('done')
+      setNote(data.alreadySubscribed ? 'You are already on the list.' : 'You are on the list.')
+      setEmail('')
+    } catch {
+      setState('error')
+      setNote('Check your connection and try again.')
+    }
   }
 
   return (
@@ -39,30 +66,52 @@ export default function Footer() {
               By subscribing you agree to our Privacy Policy. Unsubscribe anytime.
             </p>
           </div>
-          <form onSubmit={handleNewsletter} className="flex gap-2 w-full md:w-auto">
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Your email address"
-              className="flex-1 md:w-64 px-4 py-3 text-sm outline-none"
-              style={{
-                background: 'var(--f-surface)',
-                color: 'var(--f-text)',
-                border: '1px solid var(--f-line)',
-                borderRadius: 'var(--radius-btn)',
-              }}
-            />
-            <button
-              type="submit"
-              className="px-4 py-3 text-white flex items-center justify-center transition-opacity hover:opacity-90"
-              style={{ background: 'var(--f-accent)', borderRadius: 'var(--radius-btn)' }}
-              aria-label="Subscribe"
-            >
-              <Send size={16} />
-            </button>
-          </form>
+          <div className="w-full md:w-auto">
+            <form onSubmit={handleNewsletter} className="flex gap-2">
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Your email address"
+                aria-label="Your email address"
+                aria-invalid={state === 'error'}
+                className="flex-1 md:w-64 px-4 py-3 text-sm outline-none"
+                style={{
+                  background: 'var(--f-surface)',
+                  color: 'var(--f-text)',
+                  border: `1px solid ${state === 'error' ? 'var(--f-accent)' : 'var(--f-line)'}`,
+                  borderRadius: 'var(--radius-btn)',
+                }}
+              />
+              <button
+                type="submit"
+                disabled={state === 'busy'}
+                className="px-4 py-3 text-white flex items-center justify-center transition-opacity hover:opacity-90"
+                style={{
+                  background: 'var(--f-accent)',
+                  borderRadius: 'var(--radius-btn)',
+                  opacity: state === 'busy' ? 0.6 : 1,
+                }}
+                aria-label="Subscribe"
+              >
+                {state === 'busy' ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              </button>
+            </form>
+
+            {/* Outcome is announced, not assumed — a failed signup used to look
+                identical to a successful one. */}
+            {note && (
+              <p
+                role="status"
+                className="flex items-center gap-1.5 mt-2 text-xs"
+                style={{ color: state === 'error' ? 'var(--f-accent)' : 'var(--f-muted)' }}
+              >
+                {state === 'done' && <Check size={13} />}
+                {note}
+              </p>
+            )}
+          </div>
         </div>
       </div>
 

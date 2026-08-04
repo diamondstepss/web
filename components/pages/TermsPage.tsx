@@ -41,7 +41,7 @@ export function TermsPage() {
       <LegalSection title="Pricing and payment">
         <LegalList
           items={[
-            <>All prices are in Indian Rupees and inclusive of GST.</>,
+            <>All prices are in Indian Rupees and are the final amount payable — no tax is added at checkout.</>,
             <>
               Payments are processed by Cashfree. We accept UPI, credit and debit cards, net banking and wallets, as
               well as Cash on Delivery.

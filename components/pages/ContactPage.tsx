@@ -30,7 +30,9 @@ const SUBJECTS = ['Order status', 'Returns & exchange', 'Size help', 'Product qu
 
 export function ContactPage() {
   const [submitted, setSubmitted] = useState(false)
-  const [form, setForm] = useState({ name: '', phone: '', email: '', subject: SUBJECTS[0], message: '' })
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
+  const [form, setForm] = useState({ name: '', phone: '', email: '', subject: SUBJECTS[0], message: '', company: '' })
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm({ ...form, [k]: e.target.value })
@@ -120,13 +122,42 @@ export function ContactPage() {
               </div>
             ) : (
               <form
-                onSubmit={(e) => {
+                onSubmit={async (e) => {
                   e.preventDefault()
-                  setSubmitted(true)
+                  if (sending) return
+                  setSending(true)
+                  setSendError(null)
+                  try {
+                    const res = await fetch('/api/contact', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(form),
+                    })
+                    const data = (await res.json()) as { ok?: boolean; error?: string }
+                    // Only claim success once the message has actually gone.
+                    if (!res.ok || !data.ok) {
+                      setSendError(data.error ?? 'We could not send that just now.')
+                      return
+                    }
+                    setSubmitted(true)
+                  } catch {
+                    setSendError('Check your connection and try again.')
+                  } finally {
+                    setSending(false)
+                  }
                 }}
                 className="p-6 space-y-5"
                 style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
               >
+                <input
+                  type="text"
+                  name="company"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  aria-hidden="true"
+                  onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))}
+                  style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }}
+                />
                 <div className="grid sm:grid-cols-2 gap-5">
                   <Field label="Your name">
                     <input required value={form.name} onChange={set('name')} className="w-full px-4 py-3 text-sm outline-none" style={fieldStyle} />
@@ -157,11 +188,28 @@ export function ContactPage() {
                 </Field>
                 <button
                   type="submit"
+                  disabled={sending}
                   className="px-9 py-3.5 text-sm font-black uppercase tracking-widest text-white"
-                  style={{ background: 'var(--accent)', fontFamily: 'Outfit' }}
+                  style={{ background: 'var(--accent)', fontFamily: 'Outfit', opacity: sending ? 0.6 : 1 }}
                 >
-                  Send message
+                  {sending ? 'Sending…' : 'Send message'}
                 </button>
+
+                {/* A failed send must not look like a successful one. */}
+                {sendError && (
+                  <p
+                    role="alert"
+                    className="mt-4 text-sm px-4 py-3"
+                    style={{
+                      background: 'color-mix(in srgb, var(--danger) 12%, transparent)',
+                      border: '1px solid color-mix(in srgb, var(--danger) 28%, transparent)',
+                      color: 'var(--danger)',
+                    }}
+                  >
+                    {sendError} You can also call{' '}
+                    <a href={`tel:${SITE.phone}`} style={{ textDecoration: 'underline' }}>{SITE.phone}</a>.
+                  </p>
+                )}
               </form>
             )}
           </div>

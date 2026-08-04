@@ -619,12 +619,6 @@ function OrderCard({
               {open ? 'Hide tracking' : 'Track order'}
             </button>
           )}
-          <button
-            className="flex items-center gap-1.5 px-5 py-2.5 text-[11px] font-black uppercase tracking-widest"
-            style={{ border: '1px solid var(--border)', borderRadius: 99, color: 'var(--text-primary)', fontFamily: 'var(--font-outfit)' }}
-          >
-            <Download size={13} /> Invoice
-          </button>
           {o.status === 'DELIVERED' && (
             <Link
               href="/return-policy"

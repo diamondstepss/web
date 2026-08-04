@@ -9,6 +9,10 @@ export interface Product {
   badge?: 'NEW' | 'SOLD OUT' | null
   sizes?: number[]
   isNew?: boolean
+  /** Units on hand. Drives the "in stock only" filter. */
+  stock?: number
+  /** Category slugs this product belongs to, for category filtering. */
+  categories?: string[]
 }
 
 export type OrderStatus =

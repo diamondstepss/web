@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from 'next'
+import Script from 'next/script'
 import { Outfit, Inter } from 'next/font/google'
 import './globals.css'
-import { SITE, ADDRESS_ONE_LINE } from '@/data/site'
+import { SITE } from '@/data/site'
+import { localBusinessJsonLd, webSiteJsonLd, jsonLdScript } from '@/lib/jsonld'
+import { getCategories } from '@/lib/catalog'
 import { AuthProvider } from '@/context/AuthContext'
 import { CartProvider } from '@/context/CartContext'
 import { ConfirmProvider } from '@/components/ConfirmDialog'
@@ -67,45 +70,38 @@ const THEME_BOOTSTRAP = `
 }catch(e){document.documentElement.setAttribute('data-theme','dark')}})()
 `
 
-/** Helps Google show the Jalandhar shop in local results. */
-const LOCAL_BUSINESS_JSONLD = {
-  '@context': 'https://schema.org',
-  '@type': 'ShoeStore',
-  name: SITE.name,
-  slogan: SITE.tagline,
-  url: SITE_URL,
-  logo: `${SITE_URL}/brand/wide-logo.png`,
-  telephone: SITE.phone,
-  email: SITE.email,
-  address: {
-    '@type': 'PostalAddress',
-    streetAddress: SITE.address.line1,
-    addressLocality: SITE.address.city,
-    addressRegion: SITE.address.state,
-    postalCode: SITE.address.pincode,
-    addressCountry: 'IN',
-  },
-  openingHoursSpecification: {
-    '@type': 'OpeningHoursSpecification',
-    dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
-    opens: '10:00',
-    closes: '19:00',
-  },
-  sameAs: [SITE.social.instagram, SITE.social.facebook, SITE.social.maps],
-  description: ADDRESS_ONE_LINE,
-}
-
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Cached with the rest of the catalog, so this costs nothing per request.
+  const categories = await getCategories()
   return (
     <html lang="en" suppressHydrationWarning className={`${outfit.variable} ${inter.variable}`}>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
+      <body>
+        {/*
+          next/script rather than a bare <script>: React 19 warns that scripts
+          rendered inside a component never execute on the client, and a raw tag
+          in <head> tripped that on every render. `beforeInteractive` inlines
+          this ahead of any Next.js code, so the attribute is still set before
+          first paint and a returning visitor sees no flash of the wrong theme.
+        */}
+        <Script id="theme-bootstrap" strategy="beforeInteractive">
+          {THEME_BOOTSTRAP}
+        </Script>
+
+        {/*
+          JSON-LD is data, not code — browsers never execute an ld+json block.
+          Escaping `<` stops a value containing "</script>" from closing the tag
+          early, which is the pattern Next's own JSON-LD guide prescribes.
+        */}
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(LOCAL_BUSINESS_JSONLD) }}
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(localBusinessJsonLd(categories)) }}
         />
-      </head>
-      <body>
+        {/* Sitelinks search box. Points at the real /search route. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(webSiteJsonLd()) }}
+        />
+
         <AuthProvider>
           <CartProvider>
             <ConfirmProvider>{children}</ConfirmProvider>

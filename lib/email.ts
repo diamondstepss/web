@@ -144,3 +144,55 @@ export async function sendShippedEmail(opts: {
     html: shell('On its way', body),
   })
 }
+
+// ── Contact form ────────────────────────────────────────────────────────────
+
+export interface ContactMessage {
+  name: string
+  email: string
+  phone: string
+  subject?: string
+  message: string
+}
+
+/**
+ * Forwards a contact-form enquiry to the shop.
+ *
+ * `replyTo` is the customer, so hitting reply in the shop's inbox answers them
+ * directly. The form previously only flipped a "submitted" flag in React and
+ * sent nothing, so every enquiry was silently lost.
+ */
+export async function sendContactMessage(msg: ContactMessage) {
+  if (!resend) {
+    throw new Error('Email is not configured — RESEND_API_KEY is missing.')
+  }
+
+  // The values land inside an HTML email, so escape them.
+  const esc = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+  const row = (label: string, value: string) =>
+    `<tr>
+      <td style="padding:6px 0;font-size:13px;color:#666;width:110px;vertical-align:top">${label}</td>
+      <td style="padding:6px 0;font-size:14px;color:#1a1a1a">${esc(value)}</td>
+    </tr>`
+
+  const body = `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      ${row('Name', msg.name)}
+      ${row('Email', msg.email)}
+      ${row('Phone', msg.phone)}
+      ${msg.subject ? row('Subject', msg.subject) : ''}
+    </table>
+    <div style="margin-top:18px;padding:16px;background:#fafafa;border:1px solid #e0e0e0">
+      <p style="margin:0;font-size:14px;line-height:1.6;color:#1a1a1a;white-space:pre-wrap">${esc(msg.message)}</p>
+    </div>`
+
+  return resend.emails.send({
+    from: FROM,
+    to: SITE.email,
+    replyTo: msg.email,
+    subject: `Website enquiry — ${msg.subject || msg.name}`,
+    html: shell('New enquiry', body),
+  })
+}

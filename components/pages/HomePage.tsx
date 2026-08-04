@@ -46,31 +46,7 @@ const HERO_SLIDES = [
 ]
 
 
-const BRANDS = [
-  'Nike', 'Adidas', 'Jordan', 'Puma', 'Converse', 'Vans',
-  'Crocs', 'ASICS', 'New Balance', 'Onitsuka Tiger', 'Amiri', 'Balenciaga', 'BAPE', 'Louis Vuitton',
-]
 
-const TESTIMONIALS = [
-  {
-    name: 'Ananya R.',
-    city: 'Bengaluru',
-    rating: 5,
-    quote: 'Got my Nike Air Force 1s in 2 days. Totally genuine — even the box and tags were perfect. Will definitely order again!',
-  },
-  {
-    name: 'Rajan S.',
-    city: 'Mumbai',
-    rating: 5,
-    quote: 'Best prices I found anywhere online. Paid via COD, no issues at all. The size guide was super helpful.',
-  },
-  {
-    name: 'Priya K.',
-    city: 'Delhi',
-    rating: 4,
-    quote: 'Ordered Chelsea boots — absolutely love them. Quick delivery, well-packaged. Slightly delayed but worth it.',
-  },
-]
 
 function useCountdown(targetSecs: number) {
   const [secs, setSecs] = useState(targetSecs)
@@ -103,12 +79,17 @@ export function HomePage({
   products = [],
   saleProducts = [],
   categories = [],
+  reviewsSlot = null,
 }: {
   products?: Product[]
   saleProducts?: Product[]
   categories?: DbCategory[]
+  /** Rendered server-side so the reviews query never reaches the browser. */
+  reviewsSlot?: React.ReactNode
 }) {
   const PRODUCTS = products
+  // Brands the shop genuinely stocks, taken from the catalog.
+  const BRANDS = [...new Set(products.map((p) => p.brand))].filter(Boolean).sort()
   const SALE_PRODUCTS = saleProducts
   // Only categories that actually have artwork — a tile with no image looks broken.
   const CATS = categories
@@ -460,10 +441,12 @@ export function HomePage({
           className="brand-marquee flex gap-16 items-center"
           style={{ width: 'max-content' }}
         >
-          {[...BRANDS, ...BRANDS].map((brand, i) => (
+          {Array.from({ length: Math.max(2, Math.ceil(14 / Math.max(BRANDS.length, 1))) })
+            .flatMap(() => BRANDS)
+            .map((brand, i) => (
             <Link
               key={`${brand}-${i}`}
-              href={`/product-category/sneakers?brand=${brand}`}
+              href={`/shop?brand=${encodeURIComponent(brand)}`}
               className="text-sm font-black uppercase tracking-widest shrink-0 transition-colors duration-200"
               style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}
               onMouseEnter={(e) => ((e.target as HTMLElement).style.color = 'var(--text-primary)')}
@@ -568,36 +551,26 @@ export function HomePage({
           >
             WATCH &amp; SHOP
           </h2>
+          {/*
+            Real products, not a hardcoded list.
+
+            These three tiles previously linked to /product/1, /product/2 and
+            /product/7 — numeric ids against slug-based routes, so all three
+            404'd — and were captioned with Adidas and Jordan products the shop
+            does not stock.
+          */}
           <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
-            {[
-              {
-                id: 1,
-                caption: 'Nike Air Force 1 — On Foot',
-                product: '1',
-                image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=300&h=533&fit=crop&auto=format',
-              },
-              {
-                id: 2,
-                caption: 'Adidas Ultraboost Review',
-                product: '2',
-                image: 'https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=300&h=533&fit=crop&auto=format',
-              },
-              {
-                id: 3,
-                caption: 'Jordan 1 Unboxing',
-                product: '7',
-                image: 'https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?w=300&h=533&fit=crop&auto=format',
-              },
-            ].map((v) => (
+            {PRODUCTS.slice(0, 6).map((v) => (
               <Link
                 key={v.id}
-                href={`/product/${v.product}`}
+                href={`/product/${v.id}`}
                 className="relative overflow-hidden shrink-0 group"
                 style={{ width: 220, aspectRatio: '9/16', background: '#111' }}
               >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={v.image}
-                  alt={v.caption}
+                  alt={`${v.brand} ${v.title}`}
                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />
                 <div
@@ -612,7 +585,9 @@ export function HomePage({
                   </div>
                 </div>
                 <div className="absolute bottom-0 left-0 right-0 p-3" style={{ background: 'rgba(0,0,0,0.6)' }}>
-                  <p className="text-xs text-white font-medium">{v.caption}</p>
+                  <p className="text-xs text-white font-medium">
+                    {v.brand} {v.title}
+                  </p>
                 </div>
               </Link>
             ))}
@@ -654,48 +629,7 @@ export function HomePage({
         </div>
       </section>
 
-      {/* ── 13. TESTIMONIALS ──────────────────────────────────────────────── */}
-      <section className="section-pad">
-        <div className="mx-auto max-w-[1440px] px-6">
-          <h2
-            className="text-3xl md:text-[44px] font-black uppercase tracking-tight mb-10"
-            style={{ fontFamily: 'Outfit', color: 'var(--text-primary)', letterSpacing: '-0.02em' }}
-          >
-            WHAT CUSTOMERS SAY
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {TESTIMONIALS.map((t) => (
-              <div
-                key={t.name}
-                className="p-6"
-                style={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                }}
-              >
-                <div className="flex items-center gap-3 mb-4">
-                  <Stars rating={t.rating} />
-                  <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--success)' }}>
-                    <CheckCircle size={12} />
-                    Verified
-                  </span>
-                </div>
-                <p className="text-sm leading-relaxed mb-5" style={{ color: 'var(--text-primary)' }}>
-                  "{t.quote}"
-                </p>
-                <div>
-                  <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                    {t.name}
-                  </p>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {t.city}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {reviewsSlot}
     </div>
   )
 }

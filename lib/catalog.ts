@@ -23,6 +23,8 @@ export interface DbProduct {
   is_featured: boolean
   is_active: boolean
   position: number
+  /** Present only when the query embeds them — see PRODUCT_SELECT. */
+  product_categories?: { categories: { slug: string } | null }[]
 }
 
 export interface DbCategory {
@@ -49,8 +51,19 @@ export function toProduct(row: DbProduct): Product {
     badge: (row.badge as Product['badge']) ?? null,
     sizes: row.sizes.map(Number).filter((n) => !Number.isNaN(n)),
     isNew: row.badge === 'NEW',
+    stock: row.stock,
+    categories: (row.product_categories ?? [])
+      .map((pc) => pc.categories?.slug)
+      .filter((s): s is string => Boolean(s)),
   }
 }
+
+/**
+ * Every listing query embeds categories so the filter sidebar can offer real
+ * category facets without a second round trip. PostgREST resolves the embed
+ * through the product_categories join table's declared foreign keys.
+ */
+const PRODUCT_SELECT = '*,product_categories(categories(slug))'
 
 const REST = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1`
 const KEY =
@@ -80,19 +93,19 @@ async function rest<T>(path: string, revalidate = 60): Promise<T[]> {
 }
 
 export async function getProducts(): Promise<Product[]> {
-  const rows = await rest<DbProduct>('products?is_active=eq.true&order=position.asc')
+  const rows = await rest<DbProduct>(`products?select=${PRODUCT_SELECT}&is_active=eq.true&order=position.asc`)
   return rows.map(toProduct)
 }
 
 export async function getFeaturedProducts(): Promise<Product[]> {
   const rows = await rest<DbProduct>(
-    'products?is_active=eq.true&is_featured=eq.true&order=position.asc',
+    `products?select=${PRODUCT_SELECT}&is_active=eq.true&is_featured=eq.true&order=position.asc`,
   )
   return rows.map(toProduct)
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
-  const rows = await rest<DbProduct>(`products?slug=eq.${encodeURIComponent(slug)}&limit=1`)
+  const rows = await rest<DbProduct>(`products?select=${PRODUCT_SELECT}&slug=eq.${encodeURIComponent(slug)}&limit=1`)
   return rows[0] ? toProduct(rows[0]) : null
 }
 
@@ -100,18 +113,19 @@ export async function getCategories(): Promise<DbCategory[]> {
   return rest<DbCategory>('categories?is_active=eq.true&order=position.asc')
 }
 
-/** Products in one category, resolved through the join table. */
+/**
+ * Products in one category, resolved through the join table.
+ *
+ * Two round trips on purpose: PostgREST has no inline subquery, so the category
+ * id has to be resolved before the join can be filtered. A previous version
+ * tried `category_id=in.(select id from …)` first and fell back to this — that
+ * attempt could never succeed and 400'd on every category page load.
+ */
 export async function getProductsByCategory(slug: string): Promise<Product[]> {
-  const rows = await rest<{ products: DbProduct }>(
-    `product_categories?select=products(*)&category_id=in.(select id from categories where slug=eq.${slug})`,
-  )
-  // PostgREST cannot take a subquery inline, so resolve the category first.
-  if (rows.length) return rows.map((r) => toProduct(r.products))
-
   const cats = await rest<DbCategory>(`categories?slug=eq.${encodeURIComponent(slug)}&limit=1`)
   if (!cats[0]) return []
   const links = await rest<{ products: DbProduct }>(
-    `product_categories?select=products(*)&category_id=eq.${cats[0].id}`,
+    `product_categories?select=products(${PRODUCT_SELECT})&category_id=eq.${cats[0].id}`,
   )
   return links
     .map((l) => l.products)
