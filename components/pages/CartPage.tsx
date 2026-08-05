@@ -6,10 +6,12 @@ import PageHero from '@/components/PageHero'
 import { useCart } from '@/context/CartContext'
 import { useConfirm } from '@/components/ConfirmDialog'
 import { SITE } from '@/data/site'
+import CrossSell from '@/components/CrossSell'
+import type { Product } from '@/lib/types'
 
 const inr = (n: number) => `₹${Number(n).toLocaleString('en-IN')}`
 
-export function CartPage() {
+export function CartPage({ suggestions = [] }: { suggestions?: Product[] }) {
   const { lines, subtotal, savings, setQty, remove } = useCart()
   const confirm = useConfirm()
 
@@ -224,6 +226,12 @@ export function CartPage() {
             </div>
           </aside>
         </div>
+
+        <CrossSell
+          products={suggestions}
+          title="Complete the look"
+          subtitle="One-size items — add without leaving your bag."
+        />
       </section>
     </div>
   )
