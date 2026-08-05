@@ -12,20 +12,32 @@ export const SITE = {
   email: 'support@diamondstepss.com',
   emailAlt: 'info@diamondstepss.com',
 
+  /**
+   * Transcribed from the Google Business Profile, which is the authority for
+   * NAP consistency — Google matches the site against its own listing, so any
+   * difference weakens both. The signboard outside reads "Shop No. 8"; the
+   * listing says Shop No. 3, and the listing wins.
+   *
+   * Corrected here: the pincode was 144007, the listing says 144005.
+   */
   address: {
-    line1: 'Shop No 3, Main Road, Ladhewali Road',
+    line1: 'Shop No. 3, Ladhewali Rd, near Suman Day School',
+    line2: 'Gulmarg Avenue',
     city: 'Jalandhar',
     state: 'Punjab',
-    pincode: '144007',
+    pincode: '144005',
     country: 'India',
   },
 
   /**
-   * Shop coordinates, read from the Google Maps listing linked in `social.maps`.
+   * Shop coordinates, from the place's own position in the Google Maps URL —
+   * the `!3d<lat>!4d<lng>` pair, not the `@lat,lng` prefix, which is only the
+   * map viewport centre and sits ~245 m away.
+   *
    * Local structured data without geo makes Google infer the location from the
    * address string, which is far less reliable for map-pack matching.
    */
-  geo: { lat: 31.3251374, lng: 75.6192064 },
+  geo: { lat: 31.3251374, lng: 75.6217813 },
 
   hours: 'Monday–Saturday, 10 AM – 7 PM IST',
   /** Machine-readable opening hours, mirroring `hours` above. */
@@ -62,7 +74,7 @@ export const SITE = {
   gstin: null as string | null,
 } as const
 
-export const ADDRESS_ONE_LINE = `${SITE.address.line1}, ${SITE.address.city} ${SITE.address.pincode}, ${SITE.address.state}, ${SITE.address.country}`
+export const ADDRESS_ONE_LINE = `${SITE.address.line1}, ${SITE.address.line2}, ${SITE.address.city} ${SITE.address.pincode}, ${SITE.address.state}, ${SITE.address.country}`
 
 export const POLICY_PAGES = [
   { slug: '/shipping-policy', label: 'Shipping Policy' },

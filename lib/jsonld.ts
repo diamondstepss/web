@@ -79,7 +79,8 @@ export function localBusinessJsonLd(
 
     address: {
       '@type': 'PostalAddress',
-      streetAddress: SITE.address.line1,
+      // Both lines, matching the Google listing exactly.
+      streetAddress: `${SITE.address.line1}, ${SITE.address.line2}`,
       addressLocality: SITE.address.city,
       addressRegion: SITE.address.state,
       postalCode: SITE.address.pincode,

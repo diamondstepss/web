@@ -214,18 +214,20 @@ export default function Footer() {
               Contact
             </h4>
             <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--f-muted)' }}>
-              Shop No 3, Main Road, Ladhewali Road
+              {SITE.address.line1}
               <br />
-              Jalandhar 144007, Punjab, India
+              {SITE.address.line2}
+              <br />
+              {`${SITE.address.city} ${SITE.address.pincode}, ${SITE.address.state}, ${SITE.address.country}`}
             </p>
             <a
-              href="tel:+917888522353"
+              href={SITE.phoneHref}
               className="block text-sm mb-1 transition-colors duration-200"
               style={{ color: 'var(--f-muted)' }}
               onMouseEnter={(e) => ((e.target as HTMLElement).style.color = 'var(--f-text)')}
               onMouseLeave={(e) => ((e.target as HTMLElement).style.color = 'var(--f-muted)')}
             >
-              +91 78885 22353
+              {SITE.phone}
             </a>
             <a
               href="mailto:support@diamondstepss.com"
