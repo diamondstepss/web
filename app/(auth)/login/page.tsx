@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import LoginPage from '@/components/pages/LoginPage'
+import { getStoreSettings } from '@/lib/settings'
 
 export const metadata: Metadata = {
   title: 'Sign In',
@@ -8,10 +9,11 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-export default function Page() {
+export default async function Page() {
+  const settings = await getStoreSettings()
   return (
     <Suspense fallback={<div style={{ minHeight: '60vh' }} />}>
-      <LoginPage />
+      <LoginPage settings={settings} />
     </Suspense>
   )
 }

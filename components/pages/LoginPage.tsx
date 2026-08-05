@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext'
 import { isSupabaseConfigured } from '@/lib/supabase/client'
 import SupabaseSetupNotice from '@/components/SupabaseSetupNotice'
 import { SITE } from '@/data/site'
+import { DEFAULT_SETTINGS, type StoreSettings } from '@/lib/settings'
 
 /**
  * Optional demo account. Both vars must be set for the button to appear, so
@@ -22,7 +23,7 @@ const DEMO_ENABLED = Boolean(DEMO_EMAIL && DEMO_PASSWORD)
 const OTP_LENGTH = 6
 const RESEND_SECONDS = 30
 
-export function LoginPage() {
+export function LoginPage({ settings = DEFAULT_SETTINGS }: { settings?: StoreSettings }) {
   const { sendOtp, verifyOtp, signInWithPassword, signUpWithPassword, sendPasswordReset, session } =
     useAuth()
   const router = useRouter()
@@ -669,7 +670,7 @@ export function LoginPage() {
 
           <div className="flex flex-wrap gap-x-8 gap-y-3 mt-8">
             {[
-              ['Free shipping', `Over ₹${SITE.freeShippingOver}`],
+              ['Free shipping', `Over ₹${settings.freeShippingOver.toLocaleString('en-IN')}`],
               ['Easy returns', `${SITE.returnWindowDays} days`],
               ['Genuine', '100% authentic'],
             ].map(([label, value]) => (

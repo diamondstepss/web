@@ -10,11 +10,10 @@ import {
   Truck,
   RefreshCw,
   CreditCard,
-  Star,
-  CheckCircle,
 } from 'lucide-react'
 import ProductCard from '@/components/ProductCard'
 import type { Product } from '@/lib/types'
+import { DEFAULT_SETTINGS, type StoreSettings } from '@/lib/settings'
 import type { DbCategory } from '@/lib/catalog'
 
 /** SALE_PRODUCTS is a subset of PRODUCTS — merging them needs a dedupe. */
@@ -26,7 +25,7 @@ const HERO_SLIDES = [
     id: 1,
     eyebrow: 'NEW DROP',
     headline: 'STEP INTO THE\nSPOTLIGHT',
-    sub: 'Exclusive sneaker drops at prices that make sense. Free shipping over ₹999.',
+    sub: 'Exclusive sneaker drops at prices that make sense.',
     image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=1440&h=900&fit=crop&auto=format',
   },
   {
@@ -60,32 +59,19 @@ function useCountdown(targetSecs: number) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-function Stars({ rating }: { rating: number }) {
-  return (
-    <div className="flex gap-0.5">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Star
-          key={i}
-          size={12}
-          fill={i <= rating ? 'var(--warning)' : 'none'}
-          color={i <= rating ? 'var(--warning)' : 'var(--text-muted)'}
-        />
-      ))}
-    </div>
-  )
-}
-
 export function HomePage({
   products = [],
   saleProducts = [],
   categories = [],
   reviewsSlot = null,
+  settings = DEFAULT_SETTINGS,
 }: {
   products?: Product[]
   saleProducts?: Product[]
   categories?: DbCategory[]
   /** Rendered server-side so the reviews query never reaches the browser. */
   reviewsSlot?: React.ReactNode
+  settings?: StoreSettings
 }) {
   const PRODUCTS = products
   // Brands the shop genuinely stocks, taken from the catalog.
@@ -235,7 +221,7 @@ export function HomePage({
           <div className="flex overflow-x-auto no-scrollbar">
             {[
               { icon: Shield, label: '100% Genuine' },
-              { icon: Truck, label: 'Free Shipping over ₹999' },
+              { icon: Truck, label: `Free Shipping over ₹${settings.freeShippingOver.toLocaleString('en-IN')}` },
               { icon: RefreshCw, label: '7-Day Easy Returns' },
               { icon: CreditCard, label: 'COD Available' },
             ].map(({ icon: Icon, label }) => (

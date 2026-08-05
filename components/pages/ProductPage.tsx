@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { SITE } from '@/data/site'
+import { DEFAULT_SETTINGS, type StoreSettings } from '@/lib/settings'
 import {
   Heart,
   Shield,
@@ -49,7 +49,8 @@ export function ProductPage({
   product: incoming,
   related = [],
   gallery = [],
-}: { product?: Product; related?: Product[]; gallery?: MediaSlide[] } = {}) {
+  settings = DEFAULT_SETTINGS,
+}: { product?: Product; related?: Product[]; gallery?: MediaSlide[]; settings?: StoreSettings } = {}) {
   const PRODUCTS = related
   // Gallery from the database; fall back to the product's main image.
   const THUMBNAILS: MediaSlide[] =
@@ -391,7 +392,7 @@ export function ProductPage({
               </p>
               <ul className="space-y-2">
                 {[
-                  [Truck, `Free shipping on orders over ₹${SITE.freeShippingOver}`],
+                  [Truck, `Free shipping on orders over ₹${settings.freeShippingOver.toLocaleString('en-IN')}`],
                   [Banknote, 'Cash on delivery available across India'],
                   [RotateCcw, '7-day easy returns'],
                 ].map(([Icon, label]) => {

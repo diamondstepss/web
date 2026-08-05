@@ -174,7 +174,15 @@ export function breadcrumbJsonLd(trail: { name: string; path: string }[]) {
   }
 }
 
-export function productJsonLd(product: Product, categorySlug?: string) {
+export function productJsonLd(
+  product: Product,
+  categorySlug?: string,
+  /** From store_settings, so the declared rate matches what checkout charges. */
+  settings: { freeShippingOver: number; shippingFee: number } = {
+    freeShippingOver: SITE.freeShippingOver,
+    shippingFee: 99,
+  },
+) {
   // Availability is read from stock, not assumed. It was previously hardcoded
   // to InStock, so a sold-out product still told Google it could be bought —
   // which is the kind of mismatch that gets merchant listings demoted.
@@ -229,7 +237,7 @@ export function productJsonLd(product: Product, categorySlug?: string) {
         shippingRate: {
           '@type': 'MonetaryAmount',
           // Free above the threshold; the fee below it is the real charge.
-          value: product.price >= SITE.freeShippingOver ? 0 : 99,
+          value: product.price >= settings.freeShippingOver ? 0 : settings.shippingFee,
           currency: 'INR',
         },
         shippingDestination: {

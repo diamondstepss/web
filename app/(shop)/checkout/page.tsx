@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import CheckoutPage from '@/components/pages/CheckoutPage'
+import { getStoreSettings } from '@/lib/settings'
 
 export const metadata: Metadata = {
   title: 'Checkout',
@@ -7,6 +8,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-export default function Page() {
-  return <CheckoutPage />
+export default async function Page() {
+  const settings = await getStoreSettings()
+  return <CheckoutPage settings={settings} />
 }

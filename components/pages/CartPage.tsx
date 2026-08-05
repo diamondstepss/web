@@ -8,15 +8,23 @@ import { useConfirm } from '@/components/ConfirmDialog'
 import { SITE } from '@/data/site'
 import CrossSell from '@/components/CrossSell'
 import type { Product } from '@/lib/types'
+import { DEFAULT_SETTINGS, shippingFor, type StoreSettings } from '@/lib/settings'
 
 const inr = (n: number) => `₹${Number(n).toLocaleString('en-IN')}`
 
-export function CartPage({ suggestions = [] }: { suggestions?: Product[] }) {
+export function CartPage({
+  suggestions = [],
+  settings = DEFAULT_SETTINGS,
+}: {
+  suggestions?: Product[]
+  /** From the database, so the cart never promises a threshold checkout won't honour. */
+  settings?: StoreSettings
+}) {
   const { lines, subtotal, savings, setQty, remove } = useCart()
   const confirm = useConfirm()
 
-  const shipping = subtotal >= SITE.freeShippingOver || subtotal === 0 ? 0 : 99
-  const toFreeShipping = Math.max(SITE.freeShippingOver - subtotal, 0)
+  const shipping = shippingFor(subtotal, settings)
+  const toFreeShipping = Math.max(settings.freeShippingOver - subtotal, 0)
   const total = subtotal + shipping
 
   if (!lines.length) {
@@ -36,7 +44,7 @@ export function CartPage({ suggestions = [] }: { suggestions?: Product[] }) {
               Your cart is empty
             </h2>
             <p className="text-sm mb-8 max-w-sm mx-auto" style={{ color: 'var(--text-muted)' }}>
-              Free shipping over ₹{SITE.freeShippingOver} and {SITE.returnWindowDays}-day easy returns on everything.
+              Free shipping over ₹{settings.freeShippingOver.toLocaleString('en-IN')} and {SITE.returnWindowDays}-day easy returns on everything.
             </p>
             <Link
               href="/shop"
@@ -77,7 +85,7 @@ export function CartPage({ suggestions = [] }: { suggestions?: Product[] }) {
                   <div className="mt-2" style={{ height: 5, background: 'var(--hover)', borderRadius: 99 }}>
                     <div
                       style={{
-                        width: `${Math.min((subtotal / SITE.freeShippingOver) * 100, 100)}%`,
+                        width: `${Math.min((subtotal / settings.freeShippingOver) * 100, 100)}%`,
                         height: '100%',
                         background: 'var(--accent)',
                         borderRadius: 99,

@@ -1,8 +1,19 @@
 'use client'
 
-export default function AnnouncementBar() {
+import { DEFAULT_SETTINGS } from '@/lib/settings'
+
+export default function AnnouncementBar({
+  freeShippingOver = DEFAULT_SETTINGS.freeShippingOver,
+}: {
+  freeShippingOver?: number
+}) {
   const text =
-    'FREE SHIPPING OVER ₹999 · COD AVAILABLE · 7-DAY EASY RETURNS · FREE SHIPPING OVER ₹999 · COD AVAILABLE · 7-DAY EASY RETURNS · FREE SHIPPING OVER ₹999 · COD AVAILABLE · 7-DAY EASY RETURNS · '
+    // Repeated so the marquee has enough width to scroll seamlessly.
+    Array(3)
+      .fill(
+        `FREE SHIPPING OVER ₹${freeShippingOver.toLocaleString('en-IN')} · COD AVAILABLE · 7-DAY EASY RETURNS · `,
+      )
+      .join('')
 
   return (
     <div

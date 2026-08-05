@@ -3,15 +3,16 @@
 import { Truck, PackageCheck, IndianRupee, MapPin } from 'lucide-react'
 import LegalLayout, { LegalSection, LegalList } from '@/components/LegalLayout'
 import { SITE, ADDRESS_ONE_LINE } from '@/data/site'
+import { DEFAULT_SETTINGS, type StoreSettings } from '@/lib/settings'
 
-const HIGHLIGHTS = [
-  { icon: Truck, label: 'Free shipping', value: `On orders over ₹${SITE.freeShippingOver}` },
+const highlightsFor = (s: StoreSettings) => [
+  { icon: Truck, label: 'Free shipping', value: `On orders over ₹${s.freeShippingOver.toLocaleString('en-IN')}` },
   { icon: PackageCheck, label: 'Delivery time', value: SITE.deliveryDays },
   { icon: IndianRupee, label: 'COD fee', value: `₹${SITE.codFee} per order` },
   { icon: MapPin, label: 'Ships from', value: `${SITE.address.city}, ${SITE.address.state}` },
 ]
 
-export function ShippingPolicyPage() {
+export function ShippingPolicyPage({ settings = DEFAULT_SETTINGS }: { settings?: StoreSettings }) {
   return (
     <LegalLayout
       title="Shipping Policy"
@@ -20,7 +21,7 @@ export function ShippingPolicyPage() {
     >
       {/* Quick-reference strip — most customers only want these four numbers. */}
       <div className="grid grid-cols-2 gap-3 mb-10">
-        {HIGHLIGHTS.map(({ icon: Icon, label, value }) => (
+        {highlightsFor(settings).map(({ icon: Icon, label, value }) => (
           <div
             key={label}
             className="p-4"
@@ -56,10 +57,10 @@ export function ShippingPolicyPage() {
           items={[
             <>
               <strong style={{ color: 'var(--text-primary)' }}>Free shipping</strong> on all prepaid and COD orders
-              above ₹{SITE.freeShippingOver}.
+              above ₹{settings.freeShippingOver.toLocaleString('en-IN')}.
             </>,
             <>
-              Orders at or below ₹{SITE.freeShippingOver} carry a flat ₹99 shipping charge, shown in the cart
+              Orders below ₹{settings.freeShippingOver.toLocaleString('en-IN')} carry a flat ₹{settings.shippingFee} shipping charge, shown in the cart
               before payment.
             </>,
             <>

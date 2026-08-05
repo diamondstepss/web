@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Loader2, ShieldCheck, Wallet, CreditCard, Banknote, CheckCircle2 } from 'lucide-react'
+import { Loader2, ShieldCheck, Wallet, CreditCard, Banknote } from 'lucide-react'
 import PageHero from '@/components/PageHero'
 import { useCart } from '@/context/CartContext'
 import { useAuth } from '@/context/AuthContext'
@@ -11,11 +11,12 @@ import { fetchAddresses } from '@/lib/api'
 import { Tag, X } from 'lucide-react'
 
 import { SITE } from '@/data/site'
+import { DEFAULT_SETTINGS, shippingFor, type StoreSettings } from '@/lib/settings'
 import type { Address, PaymentMode } from '@/lib/types'
 
 const inr = (n: number) => `₹${Number(n).toLocaleString('en-IN')}`
 
-export function CheckoutPage() {
+export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: StoreSettings }) {
   const { lines, clear } = useCart()
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
@@ -100,7 +101,7 @@ export function CheckoutPage() {
   // Display-only estimates so the option cards show a number before the server
   // replies. The authoritative figure is `quote`, and the charge is server-side.
   const couponOff = applied?.discount ?? 0
-  const ship = subtotal >= SITE.freeShippingOver ? 0 : 99
+  const ship = shippingFor(subtotal, settings)
   const prepaidEstimate = Math.round((subtotal - couponOff) * (1 - SITE.prepaidDiscountPct / 100)) + ship
   const codEstimate = subtotal - couponOff + ship + SITE.codFee
   const total = quote?.total ?? (mode === 'PREPAID' ? prepaidEstimate : mode === 'COD' ? codEstimate : subtotal - couponOff + ship)

@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import CategoryPage from '@/components/pages/CategoryPage'
 import { getProductsByCategory, getProducts } from '@/lib/catalog'
-import { SITE } from '@/data/site'
 import { itemListJsonLd, breadcrumbJsonLd, jsonLdScript } from '@/lib/jsonld'
+import { getStoreSettings } from '@/lib/settings'
 
 /**
  * Catch-all so the inherited WooCommerce nesting keeps working:
@@ -40,9 +40,10 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params
   const label = labelFor(slug)
+  const settings = await getStoreSettings()
   return {
     title: `${label} — Buy Online`,
-    description: `Shop ${label} at Diamond Stepss. 14 brands, UK 6 to 11, free shipping over ₹${SITE.freeShippingOver}, COD available across India.`,
+    description: `Shop ${label} at Diamond Stepss. Genuine brands, UK 6 to 11, free shipping over ₹${settings.freeShippingOver}, COD available across India.`,
   }
 }
 
