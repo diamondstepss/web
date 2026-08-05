@@ -10,7 +10,6 @@ import {
   User,
   LogOut,
   Truck,
-  Download,
   RotateCcw,
   Plus,
   Trash2,

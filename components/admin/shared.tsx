@@ -83,26 +83,38 @@ export function PageHeading({
   children?: React.ReactNode
 }) {
   return (
-    <header className="adm-rise flex items-start justify-between gap-4 flex-wrap mb-6">
-      <div className="min-w-0">
-        <h1 className="adm-display text-[26px] leading-none" style={{ color: 'var(--adm-text)' }}>
-          {title}
-        </h1>
-        {description && (
-          <p className="mt-2 text-[12.5px] leading-relaxed max-w-xl" style={{ color: 'var(--adm-text-2)' }}>
-            {description}
-          </p>
-        )}
-      </div>
-      <div className="flex items-center gap-2.5 shrink-0">
+    <header className="adm-rise mb-6">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0">
+          <h1 className="adm-display text-[22px] sm:text-[26px] leading-none" style={{ color: 'var(--adm-text)' }}>
+            {title}
+          </h1>
+          {description && (
+            <p className="mt-2 text-[12.5px] leading-relaxed max-w-xl" style={{ color: 'var(--adm-text-2)' }}>
+              {description}
+            </p>
+          )}
+        </div>
         {meta && (
-          <span className="flex items-center gap-2 text-[11.5px]" style={{ color: 'var(--adm-text-3)' }}>
+          <span className="flex items-center gap-2 text-[11.5px] shrink-0" style={{ color: 'var(--adm-text-3)' }}>
             {live && <span className="adm-dot" aria-hidden />}
             {meta}
           </span>
         )}
-        {children}
       </div>
+
+      {/*
+        Actions get their own row and wrap.
+
+        Sitting inline with the title, a search field plus a button overflowed
+        a 390px screen — the "New product" button was cut off the right edge
+        with no way to reach it.
+      */}
+      {children && (
+        <div className="flex items-center gap-2 flex-wrap mt-4 [&_input]:min-w-0 [&>*]:shrink-0">
+          {children}
+        </div>
+      )}
     </header>
   )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Inbox, Search } from 'lucide-react'
+import { Inbox, Search , MoveHorizontal } from 'lucide-react'
 import { updateOrderStatus } from '@/lib/admin'
 import type { OrderStatus } from '@/lib/types'
 import {
@@ -85,7 +85,7 @@ export default function OrdersView() {
             placeholder="Order or customer"
             aria-label="Search orders"
             className="adm-input"
-            style={{ width: 210, paddingLeft: 30, height: 34 }}
+            style={{ width: 'min(220px, 60vw)', paddingLeft: 30, height: 34 }}
           />
         </div>
       </PageHeading>
@@ -123,6 +123,8 @@ export default function OrdersView() {
             }
           />
         ) : (
+          <>
+          <p className="adm-swipe-hint"><MoveHorizontal size={11} /> Swipe the table sideways to see every column</p>
           <div className="overflow-x-auto">
             <table className="adm-table" style={{ minWidth: 900 }}>
               <thead>
@@ -183,6 +185,7 @@ export default function OrdersView() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </Panel>
     </div>

@@ -265,7 +265,7 @@ export default function Header({}: HeaderProps) {
           <div className="flex items-center gap-1 ml-auto">
             <button
               onClick={() => setSearchOpen(!searchOpen)}
-              className="p-2 rounded transition-colors duration-200"
+              className="h-11 w-11 flex items-center justify-center rounded transition-colors duration-200"
               style={{ color: 'var(--text-primary)' }}
               aria-label="Search"
             >
@@ -273,7 +273,7 @@ export default function Header({}: HeaderProps) {
             </button>
             <button
               onClick={onToggleTheme}
-              className="p-2 rounded transition-colors duration-200"
+              className="h-11 w-11 flex items-center justify-center rounded transition-colors duration-200"
               style={{ color: 'var(--text-primary)' }}
               aria-label="Toggle theme"
             >
@@ -281,7 +281,7 @@ export default function Header({}: HeaderProps) {
             </button>
             <Link
               href={user ? '/my-account' : '/login'}
-              className="relative p-2 rounded transition-colors duration-200 hidden sm:block"
+              className="relative h-11 w-11 hidden sm:flex items-center justify-center rounded transition-colors duration-200"
               style={{ color: 'var(--text-primary)' }}
               aria-label={user ? 'My account' : 'Sign in'}
             >
@@ -296,7 +296,7 @@ export default function Header({}: HeaderProps) {
             </Link>
             <Link
               href={user ? '/wishlist' : '/login'}
-              className="relative p-2 rounded transition-colors duration-200"
+              className="relative h-11 w-11 flex items-center justify-center rounded transition-colors duration-200"
               style={{ color: 'var(--text-primary)' }}
               aria-label="Wishlist"
             >
@@ -312,7 +312,7 @@ export default function Header({}: HeaderProps) {
             </Link>
             <Link
               href="/cart"
-              className="relative p-2 rounded transition-colors duration-200"
+              className="relative h-11 w-11 flex items-center justify-center rounded transition-colors duration-200"
               style={{ color: 'var(--text-primary)' }}
               aria-label="Cart"
             >
@@ -328,7 +328,7 @@ export default function Header({}: HeaderProps) {
             </Link>
             <button
               onClick={() => setMobileOpen(true)}
-              className="lg:hidden p-2 rounded"
+              className="lg:hidden h-11 w-11 flex items-center justify-center rounded"
               style={{ color: 'var(--text-primary)' }}
               aria-label="Menu"
             >

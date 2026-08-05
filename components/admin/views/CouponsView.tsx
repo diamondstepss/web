@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { Plus, Percent } from 'lucide-react'
+import { Plus, Percent , MoveHorizontal } from 'lucide-react'
 import {
   adminFetchCoupons,
   createCoupon,
@@ -160,6 +160,8 @@ export default function CouponsView() {
             message="Add a code above and it works at checkout immediately."
           />
         ) : (
+          <>
+          <p className="adm-swipe-hint"><MoveHorizontal size={11} /> Swipe the table sideways to see every column</p>
           <div className="overflow-x-auto">
             <table className="adm-table" style={{ minWidth: 720 }}>
               <thead>
@@ -224,6 +226,7 @@ export default function CouponsView() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </Panel>
     </div>

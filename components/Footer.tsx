@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { MapPin, MessageCircle, Send, Loader2, Check } from 'lucide-react'
+import { Send, Loader2, Check } from 'lucide-react'
 import { useState } from 'react'
 import { SITE } from '@/data/site'
 import { InstagramIcon, FacebookIcon, WhatsAppIcon, GoogleMapsIcon } from '@/components/SocialIcons'

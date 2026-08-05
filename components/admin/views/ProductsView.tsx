@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
-import { Plus, Star, Search, PackageOpen, ImageOff } from 'lucide-react'
+import { Plus, Star, Search, PackageOpen, ImageOff , MoveHorizontal } from 'lucide-react'
 import type { DbProduct } from '@/lib/catalog'
 import {
   adminFetchProducts,
@@ -74,7 +74,7 @@ export default function ProductsView() {
             placeholder="Search products"
             aria-label="Search products"
             className="adm-input"
-            style={{ width: 200, paddingLeft: 30, height: 34 }}
+            style={{ width: 'min(220px, 60vw)', paddingLeft: 30, height: 34 }}
           />
         </div>
         <Link href="/admin/products/new" className="adm-btn adm-btn-primary">
@@ -119,6 +119,8 @@ export default function ProductsView() {
             }
           />
         ) : (
+          <>
+          <p className="adm-swipe-hint"><MoveHorizontal size={11} /> Swipe the table sideways to see every column</p>
           <div className="overflow-x-auto">
             <table className="adm-table" style={{ minWidth: 880 }}>
               <thead>
@@ -232,6 +234,7 @@ export default function ProductsView() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </Panel>
     </div>

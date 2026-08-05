@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Users, Search } from 'lucide-react'
+import { Users, Search , MoveHorizontal } from 'lucide-react'
 import { adminFetchCustomers, type AdminCustomer } from '@/lib/catalog-admin'
 import { Panel, PageHeading, ErrorNote, EmptyState, SkeletonRows } from '@/components/admin/shared'
 
@@ -46,7 +46,7 @@ export default function CustomersView() {
             placeholder="Name, email or phone"
             aria-label="Search customers"
             className="adm-input"
-            style={{ width: 220, paddingLeft: 30, height: 34 }}
+            style={{ width: 'min(220px, 60vw)', paddingLeft: 30, height: 34 }}
           />
         </div>
       </PageHeading>
@@ -65,6 +65,8 @@ export default function CustomersView() {
             }
           />
         ) : (
+          <>
+          <p className="adm-swipe-hint"><MoveHorizontal size={11} /> Swipe the table sideways to see every column</p>
           <div className="overflow-x-auto">
             <table className="adm-table" style={{ minWidth: 620 }}>
               <thead>
@@ -115,6 +117,7 @@ export default function CustomersView() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </Panel>
     </div>

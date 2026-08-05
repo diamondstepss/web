@@ -7,7 +7,6 @@ import {
   Package,
   CheckCircle2,
   Truck,
-  MapPin,
   Copy,
   MessageCircle,
   ArrowRight,

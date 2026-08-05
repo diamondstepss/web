@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 import { revalidateTag } from 'next/cache'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
@@ -15,7 +15,7 @@ export const runtime = 'nodejs'
  * run up a bill. Point a cron at it with the admin session if you want it
  * refreshed on a schedule.
  */
-export async function POST(_req: NextRequest) {
+export async function POST() {
   if (!isGoogleReviewsConfigured) {
     return NextResponse.json(
       {

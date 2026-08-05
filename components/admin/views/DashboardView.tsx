@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowUpRight, IndianRupee, ShoppingBag, Receipt, Truck, Inbox } from 'lucide-react'
+import { ArrowUpRight, IndianRupee, ShoppingBag, Receipt, Truck, Inbox , MoveHorizontal } from 'lucide-react'
 import { computeStats } from '@/lib/admin'
 import {
   inr,
@@ -148,6 +148,8 @@ export default function DashboardView() {
             message="They appear here the moment a customer completes checkout."
           />
         ) : (
+          <>
+          <p className="adm-swipe-hint"><MoveHorizontal size={11} /> Swipe the table sideways to see every column</p>
           <div className="overflow-x-auto">
             <table className="adm-table" style={{ minWidth: 620 }}>
               <thead>
@@ -179,6 +181,7 @@ export default function DashboardView() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </Panel>
     </div>
