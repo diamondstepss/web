@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { sendNewsletterWelcome } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -51,6 +52,14 @@ export async function POST(req: NextRequest) {
     }
     console.error('[newsletter] insert failed', error)
     return NextResponse.json({ error: 'We could not sign you up just now.' }, { status: 502 })
+  }
+
+  // Confirm the signup. A failed email must not fail the subscription — the
+  // address is already saved, and telling them it went wrong would be untrue.
+  try {
+    await sendNewsletterWelcome({ to: email })
+  } catch (e) {
+    console.error('[newsletter] welcome email failed', e)
   }
 
   return NextResponse.json({ ok: true })

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import FAQPage from '@/components/pages/FAQPage'
-import { FAQ_ITEMS } from '@/data/faq'
+import { faqItems } from '@/data/faq'
+import { getStoreSettings } from '@/lib/settings'
 import { faqJsonLd, breadcrumbJsonLd, jsonLdScript } from '@/lib/jsonld'
 
 export const metadata: Metadata = {
@@ -8,10 +9,11 @@ export const metadata: Metadata = {
   description: 'Answers on payment, COD, delivery times, sizing, returns and authenticity.',
 }
 
-export default function Page() {
-  // Built from the same GROUPS the page renders, so the markup always matches
+export default async function Page() {
+  // Built from the same groups the page renders, so the markup always matches
   // what a visitor actually sees — which is Google's requirement for FAQPage.
-  const items = FAQ_ITEMS
+  const settings = await getStoreSettings()
+  const items = faqItems(settings)
 
   return (
     <>
@@ -30,7 +32,7 @@ export default function Page() {
           ),
         }}
       />
-      <FAQPage />
+      <FAQPage settings={settings} />
     </>
   )
 }

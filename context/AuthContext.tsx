@@ -49,10 +49,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false)
     })
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next)
-      if (next?.user) void loadProfile(next.user.id)
-      else setProfile(null)
+      if (next?.user) {
+        void loadProfile(next.user.id)
+        // Welcome email, on the first sign-in only.
+        //
+        // Triggered here rather than in signUp because both routes into a new
+        // account end up here: an immediate session, and the confirm-by-email
+        // flow where signUp returns no session at all. The endpoint is
+        // idempotent — it claims `welcomed_at` before sending — so calling it
+        // on every sign-in is safe and covers both.
+        if (event === 'SIGNED_IN') {
+          void fetch('/api/account/welcome', { method: 'POST' }).catch(() => {})
+        }
+      } else {
+        setProfile(null)
+      }
     })
 
     return () => sub.subscription.unsubscribe()

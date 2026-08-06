@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import AiCreditsChip from './AiCreditsChip'
 import { useState, useEffect } from 'react'
 import { useTheme } from '@/lib/useTheme'
 import { useAuth } from '@/context/AuthContext'
@@ -222,6 +223,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            <AiCreditsChip />
             <button type="button" onClick={toggleTheme} className="adm-icon-btn" aria-label="Toggle theme" title="Toggle theme">
               {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
             </button>

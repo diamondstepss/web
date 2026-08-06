@@ -36,9 +36,23 @@ export async function fetchAllOrders(limit = 200): Promise<AdminOrder[]> {
   })
 }
 
+/**
+ * Moves an order forward.
+ *
+ * Goes through the API rather than writing directly, because the customer has
+ * to be told — and RESEND_API_KEY is server-only, so the browser cannot send
+ * that email. The direct write worked, but silently skipped the notification.
+ */
 export async function updateOrderStatus(id: string, status: OrderStatus): Promise<void> {
-  const { error } = await db().from('orders').update({ status }).eq('id', id)
-  if (error) throw error
+  const res = await fetch('/api/admin/order-status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderId: id, status }),
+  })
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string }
+    throw new Error(data.error ?? 'Could not update that order.')
+  }
 }
 
 export interface AdminStats {

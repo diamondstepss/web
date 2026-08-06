@@ -7,6 +7,7 @@ import { ArrowLeft, PackageX, ExternalLink } from 'lucide-react'
 import type { DbProduct } from '@/lib/catalog'
 import { adminFetchProduct, createProduct, updateProduct, slugify } from '@/lib/catalog-admin'
 import GalleryUploader from '@/components/admin/GalleryUploader'
+import AiDescriptionButton from '@/components/admin/AiDescriptionButton'
 import { AdminField, Panel, Eyebrow, ErrorNote, EmptyState, inr } from '@/components/admin/shared'
 
 /**
@@ -164,9 +165,27 @@ export default function ProductFormView({ productId }: { productId?: string }) {
                 />
               </AdminField>
 
-              <AdminField label="Description">
-                <textarea value={f.description} onChange={set('description')} rows={4} className="adm-input" />
-              </AdminField>
+              {/* Not an AdminField: that renders a <label>, and a button inside
+                  a label steals the click meant for the textarea. */}
+              <div>
+                <div className="flex items-end justify-between gap-3 mb-1.5">
+                  <span className="text-[11.5px] font-medium" style={{ color: 'var(--adm-text-2)' }}>
+                    Description
+                  </span>
+                  <AiDescriptionButton
+                    productId={product?.id}
+                    hasExisting={f.description.trim().length > 0}
+                    onResult={(text) => setF((prev) => ({ ...prev, description: text }))}
+                  />
+                </div>
+                <textarea
+                  id="product-description"
+                  value={f.description}
+                  onChange={set('description')}
+                  rows={4}
+                  className="adm-input"
+                />
+              </div>
             </div>
           </Panel>
 

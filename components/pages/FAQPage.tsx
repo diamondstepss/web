@@ -14,7 +14,8 @@ import {
 } from 'lucide-react'
 import PageHero from '@/components/PageHero'
 import { SITE } from '@/data/site'
-import { FAQ_GROUPS } from '@/data/faq'
+import { faqGroups } from '@/data/faq'
+import { DEFAULT_SETTINGS, type StoreSettings } from '@/lib/settings'
 
 /** Icons are presentation, so they stay here and are matched by group id. */
 const ICONS: Record<string, typeof CreditCard> = {
@@ -24,12 +25,12 @@ const ICONS: Record<string, typeof CreditCard> = {
   authenticity: ShieldCheck,
 }
 
-const GROUPS = FAQ_GROUPS.map((g) => ({ ...g, icon: ICONS[g.id] ?? CreditCard }))
-
 // Exported so the route can build FAQPage structured data from the same
 // source the page renders — the two can never drift apart.
-export function FAQPage() {
+export function FAQPage({ settings = DEFAULT_SETTINGS }: { settings?: StoreSettings }) {
   const [open, setOpen] = useState<string | null>('payment-0')
+  // Rebuilt from settings so the shipping answer quotes the live threshold.
+  const GROUPS = faqGroups(settings).map((g) => ({ ...g, icon: ICONS[g.id] ?? CreditCard }))
   const [active, setActive] = useState('payment')
 
   return (

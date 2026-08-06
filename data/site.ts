@@ -58,7 +58,7 @@ export const SITE = {
   },
 
   // Commercial rules referenced across policy pages and checkout copy.
-  freeShippingOver: 999,
+  freeShippingOver: 1999,
   codFee: 49,
   partialCodAdvance: 300,
   prepaidDiscountPct: 5,

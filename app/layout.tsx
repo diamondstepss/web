@@ -3,6 +3,7 @@ import Script from 'next/script'
 import { Outfit, Inter } from 'next/font/google'
 import './globals.css'
 import { SITE } from '@/data/site'
+import { getStoreSettings } from '@/lib/settings'
 import { localBusinessJsonLd, webSiteJsonLd, jsonLdScript } from '@/lib/jsonld'
 import { getCategories } from '@/lib/catalog'
 import { AuthProvider } from '@/context/AuthContext'
@@ -27,26 +28,30 @@ const inter = Inter({
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://diamondstepss.com'
 
-export const metadata: Metadata = {
+export async function generateMetadata(): Promise<Metadata> {
+  const { freeShippingOver } = await getStoreSettings()
+  const free = `₹${freeShippingOver.toLocaleString('en-IN')}`
+  return {
   metadataBase: new URL(SITE_URL),
   title: {
     default: `${SITE.name} — ${SITE.tagline}`,
     template: `%s | ${SITE.name}`,
   },
   description:
-    'Authentic sneakers, sports shoes, loafers and accessories at honest prices. Free shipping over ₹999, COD available, 7-day easy returns. Shipping across India from Jalandhar.',
+    `Authentic sneakers, sports shoes, loafers and accessories at honest prices. Free shipping over ${free}, COD available, 7-day easy returns. Shipping across India from Jalandhar.`,
   keywords: ['sneakers', 'shoes online India', 'Nike', 'Adidas', 'Jordan', 'Jalandhar', 'footwear'],
   openGraph: {
     type: 'website',
     locale: 'en_IN',
     siteName: SITE.name,
     title: `${SITE.name} — ${SITE.tagline}`,
-    description: 'Authentic footwear at honest prices. Free shipping over ₹999. COD available.',
+    description: `Authentic footwear at honest prices. Free shipping over ${free}. COD available.`,
     images: ['/brand/wide-logo.png'],
   },
   twitter: { card: 'summary_large_image' },
   icons: { icon: '/brand/favicon.ico', apple: '/brand/app-icon-512.jpg' },
   robots: { index: true, follow: true },
+  }
 }
 
 export const viewport: Viewport = {

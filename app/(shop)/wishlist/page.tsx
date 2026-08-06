@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import WishlistPage from '@/components/pages/WishlistPage'
 import { getProducts } from '@/lib/catalog'
+import { getStoreSettings } from '@/lib/settings'
 
 export const metadata: Metadata = {
   title: 'Wishlist',
@@ -9,6 +10,6 @@ export const metadata: Metadata = {
 }
 
 export default async function Page() {
-  const products = await getProducts()
-  return <WishlistPage products={products} />
+  const [products, settings] = await Promise.all([getProducts(), getStoreSettings()])
+  return <WishlistPage products={products} settings={settings} />
 }

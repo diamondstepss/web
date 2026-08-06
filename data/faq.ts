@@ -1,4 +1,5 @@
 import { SITE } from '@/data/site'
+import { DEFAULT_SETTINGS, type StoreSettings } from '@/lib/settings'
 
 /**
  * FAQ content.
@@ -11,11 +12,16 @@ import { SITE } from '@/data/site'
  * The route builds FAQPage structured data from this, and the component renders
  * from the same source, so the markup can never describe questions the page
  * doesn't show.
+ *
+ * Shipping figures come from settings, not from constants. They are editable in
+ * the admin, and an FAQ that answers "how much is shipping?" with a stale number
+ * is a customer service problem rather than a typo.
  */
 export interface FaqItem { q: string; a: string }
 export interface FaqGroup { id: string; group: string; items: FaqItem[] }
 
-export const FAQ_GROUPS: FaqGroup[] = [
+export function faqGroups(s: StoreSettings = DEFAULT_SETTINGS): FaqGroup[] {
+  return [
   {
     id: 'payment',
     group: 'Orders & Payment',
@@ -48,7 +54,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
       },
       {
         q: 'How much is shipping?',
-        a: `Free on orders over ₹${SITE.freeShippingOver}. Below that, a flat ₹99 applies and is always shown in the cart before you pay.`,
+        a: `Free on orders over ₹${s.freeShippingOver.toLocaleString('en-IN')}. Below that, a flat ₹${s.shippingFee} applies and is always shown in the cart before you pay.`,
       },
       {
         q: 'How do I track my order?',
@@ -88,7 +94,9 @@ export const FAQ_GROUPS: FaqGroup[] = [
       },
     ],
   },
-]
+  ]
+}
 
 /** Flattened, for structured data. */
-export const FAQ_ITEMS: FaqItem[] = FAQ_GROUPS.flatMap((g) => g.items)
+export const faqItems = (s: StoreSettings = DEFAULT_SETTINGS): FaqItem[] =>
+  faqGroups(s).flatMap((g) => g.items)

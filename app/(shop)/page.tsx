@@ -5,8 +5,11 @@ import { getProducts, getSaleProducts, getCategories } from '@/lib/catalog'
 import { getReviews } from '@/lib/reviews'
 import { getStoreSettings } from '@/lib/settings'
 
-export const metadata: Metadata = {
-  description: 'Authentic sneakers, sports shoes, loafers and accessories at honest prices. Free shipping over ₹999, COD available, 7-day easy returns.',
+export async function generateMetadata(): Promise<Metadata> {
+  const { freeShippingOver } = await getStoreSettings()
+  return {
+    description: `Authentic sneakers, sports shoes, loafers and accessories at honest prices. Free shipping over ₹${freeShippingOver.toLocaleString('en-IN')}, COD available, 7-day easy returns.`,
+  }
 }
 
 export default async function Page() {

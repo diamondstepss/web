@@ -1,17 +1,34 @@
 import 'server-only'
 import { Resend } from 'resend'
-import { SITE, ADDRESS_ONE_LINE } from '@/data/site'
+import { SITE } from '@/data/site'
+import { getStoreSettings, DEFAULT_SETTINGS, type StoreSettings } from './settings'
+import {
+  shell,
+  heading,
+  paragraph,
+  button,
+  panel,
+  divider,
+  row,
+  inr,
+  esc,
+  C,
+  SITE_URL,
+  BODY,
+} from './email-template'
 
 /**
- * Transactional email via Resend.
+ * Transactional email, all through Resend.
  *
- * Note the split of responsibilities:
- *  - **Auth emails** (the sign-in OTP) are sent by Supabase, which is pointed at
- *    Resend's SMTP in the dashboard. Nothing here is involved in that path.
- *  - **Order emails** (below) are sent by us, through Resend's API.
+ * Two paths, one provider:
+ *  - **App emails** (everything in this file) go through the Resend API.
+ *  - **Auth emails** — sign-in code, password reset, address confirmation —
+ *    are sent by Supabase, which is pointed at Resend's SMTP in the dashboard.
+ *    Matching templates live in emails/supabase/; paste them into
+ *    Supabase → Authentication → Email Templates.
  *
- * Both end up delivered by Resend, so there's one sending domain and one place
- * to look at deliverability.
+ * Everything therefore leaves from one domain, with one place to look at
+ * deliverability. The shared look lives in lib/email-template.ts.
  */
 
 const apiKey = process.env.RESEND_API_KEY
@@ -21,34 +38,129 @@ export const isEmailConfigured = Boolean(apiKey)
 
 const resend = apiKey ? new Resend(apiKey) : null
 
-const inr = (n: number) => `₹${Number(n).toLocaleString('en-IN')}`
-
-/** Shared shell so every email looks like the store. */
-function shell(heading: string, body: string) {
-  return `<!doctype html>
-<html><body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 16px">
-    <tr><td align="center">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid #e0e0e0">
-        <tr><td style="background:#000000;padding:22px 28px">
-          <span style="color:#ff3333;font-size:22px;font-weight:900;letter-spacing:-0.5px">DIAMOND</span>
-          <span style="color:#ffffff;font-size:18px;font-style:italic;margin-left:4px">Stepss</span>
-        </td></tr>
-        <tr><td style="padding:32px 28px">
-          <h1 style="margin:0 0 18px;font-size:22px;font-weight:800;color:#1a1a1a;text-transform:uppercase;letter-spacing:-0.5px">${heading}</h1>
-          ${body}
-        </td></tr>
-        <tr><td style="padding:20px 28px;border-top:1px solid #e0e0e0;background:#fafafa">
-          <p style="margin:0 0 6px;font-size:12px;color:#666">${ADDRESS_ONE_LINE}</p>
-          <p style="margin:0;font-size:12px;color:#666">
-            ${SITE.phone} · <a href="mailto:${SITE.email}" style="color:#e02020">${SITE.email}</a>
-          </p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body></html>`
+/**
+ * A rendered email, before it goes anywhere.
+ *
+ * Every template is built by a `render*` function returning one of these, and
+ * sent by a one-line `send*` wrapper. The split exists so the previewer at
+ * /api/dev/emails can show exactly what customers receive — if the preview and
+ * the send could drift apart, the preview would be worthless.
+ */
+export interface Mail {
+  to: string
+  subject: string
+  html: string
+  replyTo?: string
 }
+
+/** Every send goes through here, so a missing key fails the same way once. */
+async function send(opts: Mail) {
+  if (!resend) {
+    console.warn(`[email] RESEND_API_KEY not set — skipped "${opts.subject}"`)
+    return { skipped: true as const }
+  }
+  return resend.emails.send({
+    from: FROM,
+    to: opts.to,
+    subject: opts.subject,
+    html: opts.html,
+    ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
+  })
+}
+
+/** Line items, shared by the order emails. */
+function itemRows(
+  items: { title: string; brand: string; size?: string | null; qty: number; price: number }[],
+) {
+  return items
+    .map(
+      (i) => `<tr>
+      <td style="padding:12px 0;border-bottom:1px solid ${C.line}">
+        <span style="font-family:${BODY};font-size:10px;color:${C.muted};text-transform:uppercase;letter-spacing:0.12em">${esc(i.brand)}</span><br>
+        <span style="font-family:${BODY};font-size:14px;color:${C.ink};font-weight:600">${esc(i.title)}</span><br>
+        <span style="font-family:${BODY};font-size:12px;color:${C.muted}">${i.size ? `Size UK ${esc(String(i.size))}` : 'One size'}${i.qty > 1 ? ` · Qty ${i.qty}` : ''}</span>
+      </td>
+      <td align="right" style="padding:12px 0;border-bottom:1px solid ${C.line};font-family:${BODY};font-size:14px;font-weight:700;color:${C.ink}">${inr(i.price * i.qty)}</td>
+    </tr>`,
+    )
+    .join('')
+}
+
+// ── Account ─────────────────────────────────────────────────────────────────
+
+/**
+ * Sent once, after a customer creates an account.
+ *
+ * Takes settings rather than reading SITE.freeShippingOver: the threshold is
+ * configurable in the admin, and an email promising free shipping at a figure
+ * the cart no longer honours is worse than not mentioning it at all.
+ */
+export function renderWelcomeEmail(opts: {
+  to: string
+  name?: string | null
+  settings?: StoreSettings
+}): Mail {
+  const s = opts.settings ?? DEFAULT_SETTINGS
+  const first = (opts.name ?? '').trim().split(' ')[0]
+  const body = `
+    ${heading(first ? `Welcome, ${first}` : 'Welcome to Diamond Stepss')}
+    ${paragraph(
+      'Your account is ready. You can track orders, save addresses and keep a wishlist — all in one place.',
+    )}
+    ${panel(`
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        <tr><td style="font-family:${BODY};font-size:13px;line-height:1.9;color:${C.body}">
+          <strong style="color:${C.ink}">Free shipping</strong> on orders over ${inr(s.freeShippingOver)}<br>
+          <strong style="color:${C.ink}">Cash on delivery</strong> across India<br>
+          <strong style="color:${C.ink}">${SITE.returnWindowDays}-day returns</strong> on unworn pairs
+        </td></tr>
+      </table>`)}
+    ${button('Start shopping', `${SITE_URL}/shop`)}
+    ${paragraph(
+      `Genuine stock only, straight from our shop in ${esc(SITE.address.city)}. Questions? Just reply to this email.`,
+    )}`
+
+  return {
+    to: opts.to,
+    subject: `Welcome to ${SITE.name}`,
+    html: shell(body, {
+      eyebrow: 'Account created',
+      preheader: 'Your account is ready — track orders, save addresses and build a wishlist.',
+    }),
+    replyTo: SITE.email,
+  }
+}
+
+export async function sendWelcomeEmail(opts: { to: string; name?: string | null }) {
+  return send(renderWelcomeEmail({ ...opts, settings: await getStoreSettings() }))
+}
+
+/** Confirms a newsletter signup. */
+export function renderNewsletterWelcome(opts: { to: string }): Mail {
+  const body = `
+    ${heading('You are on the list')}
+    ${paragraph(
+      'You will hear from us when new pairs land and when prices drop — not more often than that.',
+    )}
+    ${button('Browse new arrivals', `${SITE_URL}/product-category/new-arrivals`)}
+    ${paragraph(
+      `<span style="font-size:13px;color:${C.muted}">Changed your mind? Reply with &quot;unsubscribe&quot; and we will take you off straight away.</span>`,
+    )}`
+
+  return {
+    to: opts.to,
+    subject: `You're on the list — ${SITE.name}`,
+    html: shell(body, {
+      eyebrow: 'Subscribed',
+      preheader: 'New drops and price cuts, straight to your inbox.',
+    }),
+    replyTo: SITE.email,
+  }
+}
+
+export const sendNewsletterWelcome = (opts: { to: string }) => send(renderNewsletterWelcome(opts))
+
+// ── Orders ──────────────────────────────────────────────────────────────────
 
 export interface OrderEmailInput {
   to: string
@@ -61,89 +173,160 @@ export interface OrderEmailInput {
 }
 
 /** Sent once the payment webhook confirms an order. */
-export async function sendOrderConfirmation(input: OrderEmailInput) {
-  if (!resend) {
-    console.warn('[email] RESEND_API_KEY not set — skipping order confirmation')
-    return { skipped: true as const }
-  }
-
-  const rows = input.items
-    .map(
-      (i) => `<tr>
-        <td style="padding:10px 0;border-bottom:1px solid #eee">
-          <span style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px">${i.brand}</span><br>
-          <span style="font-size:14px;color:#1a1a1a;font-weight:600">${i.title}</span><br>
-          <span style="font-size:12px;color:#666">${i.size ? `Size ${i.size}` : ''}${i.qty > 1 ? ` · Qty ${i.qty}` : ''}</span>
-        </td>
-        <td align="right" style="padding:10px 0;border-bottom:1px solid #eee;font-size:14px;font-weight:700;color:#1a1a1a">${inr(i.price)}</td>
-      </tr>`,
-    )
-    .join('')
+export function renderOrderConfirmation(input: OrderEmailInput): Mail {
+  const first = (input.customerName ?? '').trim().split(' ')[0]
 
   // The balance line is the whole point of partial COD — make it unmissable.
   const balance =
     input.amountDueOnDelivery > 0
-      ? `<div style="margin-top:18px;padding:14px 16px;background:#fff8e6;border-left:3px solid #f59e0b">
-           <p style="margin:0;font-size:14px;color:#1a1a1a">
-             <strong>${inr(input.amountDueOnDelivery)} to pay on delivery</strong><br>
-             <span style="font-size:12px;color:#666">Please keep cash ready. ${inr(input.amountPaidOnline)} already paid online.</span>
-           </p>
-         </div>`
+      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;background:#fff8e6;border-left:3px solid #f59e0b;border-radius:6px">
+           <tr><td style="padding:14px 16px;font-family:${BODY}">
+             <strong style="font-size:15px;color:${C.ink}">${inr(input.amountDueOnDelivery)} to pay on delivery</strong><br>
+             <span style="font-size:12.5px;color:${C.muted}">Please keep cash ready. ${inr(input.amountPaidOnline)} is already paid.</span>
+           </td></tr>
+         </table>`
       : ''
 
   const body = `
-    <p style="margin:0 0 20px;font-size:14px;color:#444;line-height:1.6">
-      Thanks ${input.customerName || 'for your order'} — we've got it and we're packing it now.
-      Your order number is <strong style="color:#1a1a1a">${input.orderNumber}</strong>.
-    </p>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}
-      <tr><td style="padding:14px 0;font-size:15px;font-weight:800;color:#1a1a1a">Total</td>
-          <td align="right" style="padding:14px 0;font-size:15px;font-weight:800;color:#1a1a1a">${inr(input.total)}</td></tr>
+    ${heading(first ? `Thanks, ${first}` : 'Thanks for your order')}
+    ${paragraph(
+      `We have your order and we're packing it now. Your order number is <strong style="color:${C.ink}">${esc(input.orderNumber)}</strong>.`,
+    )}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      ${itemRows(input.items)}
+    </table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px">
+      ${row('Total', inr(input.total), { strong: true })}
+      ${input.amountPaidOnline > 0 ? row('Paid online', `− ${inr(input.amountPaidOnline)}`, { tint: C.success }) : ''}
     </table>
     ${balance}
-    <a href="${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://diamondstepss.com'}/order-tracking"
-       style="display:inline-block;margin-top:24px;background:#ff3333;color:#fff;text-decoration:none;padding:13px 26px;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:1px">
-      Track your order
-    </a>`
+    ${button('Track your order', `${SITE_URL}/order-tracking`)}`
 
-  return resend.emails.send({
-    from: FROM,
+  return {
     to: input.to,
     subject: `Order ${input.orderNumber} confirmed — ${SITE.name}`,
-    html: shell('Order confirmed', body),
-  })
-}
-
-/** Sent when Shiprocket reports the parcel has shipped. */
-export async function sendShippedEmail(opts: {
-  to: string
-  orderNumber: string
-  courier: string
-  awb: string
-}) {
-  if (!resend) {
-    console.warn('[email] RESEND_API_KEY not set — skipping shipped email')
-    return { skipped: true as const }
+    html: shell(body, {
+      eyebrow: 'Order confirmed',
+      preheader: `${input.orderNumber} · ${inr(input.total)}${
+        input.amountDueOnDelivery > 0 ? ` · ${inr(input.amountDueOnDelivery)} due on delivery` : ' · paid in full'
+      }`,
+    }),
+    replyTo: SITE.email,
   }
-
-  const body = `
-    <p style="margin:0 0 18px;font-size:14px;color:#444;line-height:1.6">
-      Order <strong style="color:#1a1a1a">${opts.orderNumber}</strong> is on its way.
-    </p>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e0e0e0">
-      <tr><td style="padding:12px 16px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:1px">Courier</td>
-          <td align="right" style="padding:12px 16px;font-size:14px;font-weight:700;color:#1a1a1a">${opts.courier}</td></tr>
-      <tr><td style="padding:12px 16px;border-top:1px solid #eee;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:1px">AWB</td>
-          <td align="right" style="padding:12px 16px;border-top:1px solid #eee;font-size:14px;font-weight:700;color:#1a1a1a">${opts.awb}</td></tr>
-    </table>`
-
-  return resend.emails.send({
-    from: FROM,
-    to: opts.to,
-    subject: `Your order ${opts.orderNumber} has shipped`,
-    html: shell('On its way', body),
-  })
 }
+
+export const sendOrderConfirmation = (input: OrderEmailInput) => send(renderOrderConfirmation(input))
+
+/** Sent when the parcel is dispatched. */
+export interface ShippedInput {
+  to: string
+  customerName?: string | null
+  orderNumber: string
+  courier?: string | null
+  awb?: string | null
+  trackingUrl?: string | null
+}
+
+export function renderShippedEmail(opts: ShippedInput): Mail {
+  const first = (opts.customerName ?? '').trim().split(' ')[0]
+  const body = `
+    ${heading('Your order is on its way')}
+    ${paragraph(
+      `${first ? `${esc(first)}, your` : 'Your'} order <strong style="color:${C.ink}">${esc(opts.orderNumber)}</strong> has left our shop.`,
+    )}
+    ${panel(`
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        ${row('Courier', esc(opts.courier ?? 'Assigned at pickup'))}
+        ${row('Tracking number', opts.awb ? `<span style="font-family:monospace">${esc(opts.awb)}</span>` : 'Available shortly')}
+        ${row('Expected', esc(SITE.deliveryDays))}
+      </table>`)}
+    ${button('Track your parcel', opts.trackingUrl ?? `${SITE_URL}/order-tracking`)}
+    ${paragraph(
+      `<span style="font-size:13px;color:${C.muted}">Tracking can take a few hours to show its first scan after pickup.</span>`,
+    )}`
+
+  return {
+    to: opts.to,
+    subject: `Order ${opts.orderNumber} has shipped — ${SITE.name}`,
+    html: shell(body, {
+      eyebrow: 'Dispatched',
+      preheader: `${opts.courier ? `${opts.courier} · ` : ''}Arriving in ${SITE.deliveryDays}.`,
+    }),
+    replyTo: SITE.email,
+  }
+}
+
+export const sendShippedEmail = (opts: ShippedInput) => send(renderShippedEmail(opts))
+
+/** Sent when an order is marked delivered. */
+export interface StatusInput {
+  to: string
+  customerName?: string | null
+  orderNumber: string
+}
+
+export function renderDeliveredEmail(opts: StatusInput): Mail {
+  const first = (opts.customerName ?? '').trim().split(' ')[0]
+  const body = `
+    ${heading('Delivered — enjoy them')}
+    ${paragraph(
+      `${first ? `${esc(first)}, your` : 'Your'} order <strong style="color:${C.ink}">${esc(opts.orderNumber)}</strong> has been delivered.`,
+    )}
+    ${paragraph(
+      `If the fit isn't right, you have <strong style="color:${C.ink}">${SITE.returnWindowDays} days</strong> to return unworn pairs with their tags and box.`,
+    )}
+    ${button('Shop again', `${SITE_URL}/shop`)}
+    ${divider()}
+    ${paragraph(
+      `<span style="font-size:13px;color:${C.muted}">Happy with them? A review on Google genuinely helps a small shop like ours — <a href="${SITE.social.maps}" style="color:${C.accent}">leave one here</a>.</span>`,
+    )}`
+
+  return {
+    to: opts.to,
+    subject: `Order ${opts.orderNumber} delivered — ${SITE.name}`,
+    html: shell(body, {
+      eyebrow: 'Delivered',
+      preheader: `Your order arrived. ${SITE.returnWindowDays} days to return if the fit isn't right.`,
+    }),
+    replyTo: SITE.email,
+  }
+}
+
+export const sendDeliveredEmail = (opts: StatusInput) => send(renderDeliveredEmail(opts))
+
+/** Sent when an order is cancelled. */
+export function renderCancelledEmail(opts: StatusInput & { refundAmount?: number }): Mail {
+  const first = (opts.customerName ?? '').trim().split(' ')[0]
+  const body = `
+    ${heading('Order cancelled')}
+    ${paragraph(
+      `${first ? `${esc(first)}, your` : 'Your'} order <strong style="color:${C.ink}">${esc(opts.orderNumber)}</strong> has been cancelled.`,
+    )}
+    ${
+      opts.refundAmount && opts.refundAmount > 0
+        ? paragraph(
+            `A refund of <strong style="color:${C.ink}">${inr(opts.refundAmount)}</strong> is on its way back to the method you paid with. Banks usually take 5–7 working days to show it.`,
+          )
+        : paragraph('Nothing was charged, so there is no refund to process.')
+    }
+    ${button('Browse the shop', `${SITE_URL}/shop`)}
+    ${paragraph(
+      `<span style="font-size:13px;color:${C.muted}">If you didn't ask for this, reply to this email and we'll look into it.</span>`,
+    )}`
+
+  return {
+    to: opts.to,
+    subject: `Order ${opts.orderNumber} cancelled — ${SITE.name}`,
+    html: shell(body, {
+      eyebrow: 'Cancelled',
+      preheader: opts.refundAmount ? `Refund of ${inr(opts.refundAmount)} on its way.` : 'Nothing was charged.',
+    }),
+    replyTo: SITE.email,
+  }
+}
+
+export const sendCancelledEmail = (opts: StatusInput & { refundAmount?: number }) =>
+  send(renderCancelledEmail(opts))
 
 // ── Contact form ────────────────────────────────────────────────────────────
 
@@ -162,37 +345,36 @@ export interface ContactMessage {
  * directly. The form previously only flipped a "submitted" flag in React and
  * sent nothing, so every enquiry was silently lost.
  */
-export async function sendContactMessage(msg: ContactMessage) {
-  if (!resend) {
-    throw new Error('Email is not configured — RESEND_API_KEY is missing.')
-  }
-
-  // The values land inside an HTML email, so escape them.
-  const esc = (s: string) =>
-    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-
-  const row = (label: string, value: string) =>
-    `<tr>
-      <td style="padding:6px 0;font-size:13px;color:#666;width:110px;vertical-align:top">${label}</td>
-      <td style="padding:6px 0;font-size:14px;color:#1a1a1a">${esc(value)}</td>
-    </tr>`
-
+export function renderContactMessage(msg: ContactMessage): Mail {
   const body = `
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-      ${row('Name', msg.name)}
-      ${row('Email', msg.email)}
-      ${row('Phone', msg.phone)}
-      ${msg.subject ? row('Subject', msg.subject) : ''}
+    ${heading('New enquiry')}
+    ${panel(`
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+        ${row('Name', esc(msg.name))}
+        ${row('Email', esc(msg.email))}
+        ${msg.phone ? row('Phone', esc(msg.phone)) : ''}
+        ${msg.subject ? row('Subject', esc(msg.subject)) : ''}
+      </table>`)}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border-left:3px solid ${C.accent}">
+      <tr><td style="padding:4px 0 4px 16px;font-family:${BODY};font-size:15px;line-height:1.65;color:${C.ink};white-space:pre-wrap">${esc(msg.message)}</td></tr>
     </table>
-    <div style="margin-top:18px;padding:16px;background:#fafafa;border:1px solid #e0e0e0">
-      <p style="margin:0;font-size:14px;line-height:1.6;color:#1a1a1a;white-space:pre-wrap">${esc(msg.message)}</p>
-    </div>`
+    <div style="height:18px;line-height:18px;font-size:0">&nbsp;</div>
+    ${paragraph(`<span style="font-size:13px;color:${C.muted}">Reply to this email to answer ${esc(msg.name)} directly.</span>`)}`
 
-  return resend.emails.send({
-    from: FROM,
+  return {
     to: SITE.email,
-    replyTo: msg.email,
     subject: `Website enquiry — ${msg.subject || msg.name}`,
-    html: shell('New enquiry', body),
-  })
+    html: shell(body, {
+      eyebrow: 'Contact form',
+      preheader: `${msg.name} · ${msg.message.slice(0, 90)}`,
+    }),
+    replyTo: msg.email,
+  }
+}
+
+export async function sendContactMessage(msg: ContactMessage) {
+  // Unlike the others, this one throws: the contact form tells the visitor
+  // their message was sent, and that must not be a lie.
+  if (!resend) throw new Error('Email is not configured — RESEND_API_KEY is missing.')
+  return send(renderContactMessage(msg))
 }

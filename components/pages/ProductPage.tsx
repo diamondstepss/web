@@ -519,7 +519,7 @@ export function ProductPage({
               </Accordion>
               <Accordion title="Shipping & Returns">
                 <p>
-                  Free shipping on orders over ₹999. Standard delivery 2–5 business days. 7-day easy returns
+                  Free shipping on orders over ₹{settings.freeShippingOver.toLocaleString('en-IN')}. Standard delivery 2–5 business days. 7-day easy returns
                   on all unworn, unwashed, tagged items. COD available for all pincodes.
                 </p>
               </Accordion>

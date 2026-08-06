@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { useCart } from '@/context/CartContext'
 import { useTheme } from '@/lib/useTheme'
@@ -32,6 +32,17 @@ const NAV_ITEMS = [
   { label: 'ACCESSORIES', href: '/product-category/accessories' },
   { label: 'SALE', href: '/product-category/sale', accent: true },
 ]
+
+/**
+ * Which nav item the current URL belongs to.
+ *
+ * startsWith covers the sub-category pages — /product-category/sneakers/low-top
+ * keeps SNEAKERS lit — and the trailing slash stops /sports-shoes-sale from
+ * matching /sports-shoes.
+ */
+function isActive(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`)
+}
 
 const BRANDS = [
   'Nike',
@@ -68,6 +79,7 @@ export default function Header({}: HeaderProps) {
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchVal, setSearchVal] = useState('')
   const router = useRouter()
+  const pathname = usePathname()
   const { user } = useAuth()
   // Real wishlist count for the badge — null while unknown or signed out.
   const [count, setCount] = useState<number | null>(null)
@@ -127,7 +139,9 @@ export default function Header({}: HeaderProps) {
 
           {/* Desktop nav */}
           <nav className="hidden lg:flex items-center gap-1 flex-1 justify-center">
-            {NAV_ITEMS.map((item) => (
+            {NAV_ITEMS.map((item) => {
+              const active = isActive(pathname, item.href)
+              return (
               <div
                 key={item.label}
                 className="relative"
@@ -136,14 +150,25 @@ export default function Header({}: HeaderProps) {
               >
                 <Link
                   href={item.href}
-                  className="flex items-center gap-1 px-3 py-2 text-xs font-semibold tracking-widest uppercase transition-colors duration-200"
+                  aria-current={active ? 'page' : undefined}
+                  className="relative flex items-center gap-1 px-3 py-2 text-xs tracking-widest uppercase transition-colors duration-200"
                   style={{
-                    color: item.accent ? 'var(--accent)' : 'var(--text-primary)',
+                    color: item.accent || active ? 'var(--accent)' : 'var(--text-primary)',
+                    fontWeight: active ? 800 : 600,
                     fontFamily: 'Outfit',
                   }}
                 >
                   {item.label}
                   {item.hasDropdown && <ChevronDown size={12} />}
+                  {/* Underline sits just inside the padding so it tracks the
+                      label rather than the whole hit area. */}
+                  {active && (
+                    <span
+                      aria-hidden
+                      className="absolute left-3 right-3 -bottom-0.5"
+                      style={{ height: 2, background: 'var(--accent)' }}
+                    />
+                  )}
                 </Link>
 
                 {/* Mega dropdown */}
@@ -258,7 +283,8 @@ export default function Header({}: HeaderProps) {
                   </div>
                 )}
               </div>
-            ))}
+              )
+            })}
           </nav>
 
           {/* Right icons */}
@@ -409,21 +435,36 @@ export default function Header({}: HeaderProps) {
             </div>
 
             <nav className="flex-1 px-5 py-4 flex flex-col gap-1">
-              {NAV_ITEMS.map((item) => (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  onClick={() => setMobileOpen(false)}
-                  className="py-3 text-sm font-bold tracking-widest uppercase border-b"
-                  style={{
-                    color: item.accent ? 'var(--accent)' : 'var(--text-primary)',
-                    borderColor: 'var(--border)',
-                    fontFamily: 'Outfit',
-                  }}
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {NAV_ITEMS.map((item) => {
+                const active = isActive(pathname, item.href)
+                return (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    onClick={() => setMobileOpen(false)}
+                    aria-current={active ? 'page' : undefined}
+                    className="flex items-center gap-2.5 py-3 text-sm font-bold tracking-widest uppercase border-b"
+                    style={{
+                      color: item.accent || active ? 'var(--accent)' : 'var(--text-primary)',
+                      borderColor: 'var(--border)',
+                      fontFamily: 'Outfit',
+                    }}
+                  >
+                    {/* A bar rather than an underline: in a stacked list the
+                        eye picks up the left edge faster. */}
+                    <span
+                      aria-hidden
+                      style={{
+                        width: 3,
+                        height: 16,
+                        borderRadius: 2,
+                        background: active ? 'var(--accent)' : 'transparent',
+                      }}
+                    />
+                    {item.label}
+                  </Link>
+                )
+              })}
             </nav>
 
             <div

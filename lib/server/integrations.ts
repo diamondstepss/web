@@ -28,6 +28,15 @@ export interface Integration {
   status: 'READY' | 'INCOMPLETE'
   note?: string
   docsUrl?: string
+  /**
+   * Infrastructure the shop owner never touches, kept out of the way.
+   *
+   * Cashfree and Shiprocket are theirs — they log into those dashboards and
+   * rotate those keys. Supabase and Resend are ours: set once at setup and
+   * never thought about again. Both still belong on this page, because when
+   * one does break it is the first place to look.
+   */
+  advanced?: boolean
 }
 
 const present = (v: string | undefined) => Boolean(v && v.trim())
@@ -37,7 +46,7 @@ function build(
   name: string,
   purpose: string,
   fields: Omit<IntegrationField, 'set'>[],
-  extra: { note?: string; docsUrl?: string } = {},
+  extra: { note?: string; docsUrl?: string; advanced?: boolean } = {},
 ): Integration {
   const resolved = fields.map((f) => ({ ...f, set: present(process.env[f.env]) }))
   const status = resolved.every((f) => !f.required || f.set) ? 'READY' : 'INCOMPLETE'
@@ -46,11 +55,17 @@ function build(
 
 export function getIntegrations(): Integration[] {
   return [
-    build('supabase', 'Supabase', 'Database, auth and product image storage.', [
-      { env: 'NEXT_PUBLIC_SUPABASE_URL', label: 'Project URL', required: true },
-      { env: 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', label: 'Publishable key', required: true },
-      { env: 'SUPABASE_SERVICE_ROLE_KEY', label: 'Service role key (server only)', required: true },
-    ]),
+    build(
+      'supabase',
+      'Supabase',
+      'Database, auth and product image storage.',
+      [
+        { env: 'NEXT_PUBLIC_SUPABASE_URL', label: 'Project URL', required: true },
+        { env: 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', label: 'Publishable key', required: true },
+        { env: 'SUPABASE_SERVICE_ROLE_KEY', label: 'Service role key (server only)', required: true },
+      ],
+      { advanced: true },
+    ),
     build(
       'cashfree',
       'Cashfree',
@@ -81,6 +96,7 @@ export function getIntegrations(): Integration[] {
         { env: 'RESEND_API_KEY', label: 'API key', required: true },
         { env: 'RESEND_FROM', label: 'From address', required: false },
       ],
+      { advanced: true },
     ),
   ]
 }

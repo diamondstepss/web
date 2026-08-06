@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { CheckCircle2, AlertTriangle, Copy, Check, ArrowUpRight, Lock } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, Copy, Check, ArrowUpRight, Lock, ChevronRight } from 'lucide-react'
 import { Panel, Eyebrow, PageHeading } from '@/components/admin/shared'
 import type { Integration } from '@/lib/server/integrations'
 
@@ -13,6 +13,59 @@ import type { Integration } from '@/lib/server/integrations'
  * worst a compromised admin session can do here is read which services are
  * configured — not what their credentials are.
  */
+
+/** One integration. Identical in both sections — only the grouping differs. */
+function IntegrationCard({ int, rise }: { int: Integration; rise: number }) {
+  return (
+    <Panel className={`p-5 adm-rise adm-rise-${Math.min(rise, 4)}`}>
+      <div className="flex items-start justify-between gap-3 mb-1.5">
+        <h2 className="adm-display text-[15px]" style={{ color: 'var(--adm-text)' }}>{int.name}</h2>
+        <span className={`adm-badge ${int.status === 'READY' ? 'adm-badge-ok' : 'adm-badge-warn'}`}>
+          {int.status === 'READY' ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />}
+          {int.status === 'READY' ? 'Configured' : 'Incomplete'}
+        </span>
+      </div>
+
+      <p className="text-[12px] mb-4" style={{ color: 'var(--adm-text-2)' }}>{int.purpose}</p>
+
+      <div className="space-y-1.5">
+        {int.fields.map((f) => (
+          <div
+            key={f.env}
+            className="flex items-center justify-between gap-3 px-3 py-2"
+            style={{ background: 'var(--adm-inset)', borderRadius: 8, border: '1px solid var(--adm-line)' }}
+          >
+            <span className="min-w-0">
+              <span className="block text-[12px]" style={{ color: 'var(--adm-text)' }}>
+                {f.label}
+                {!f.required && (
+                  <span className="text-[10px] ml-1.5" style={{ color: 'var(--adm-text-3)' }}>optional</span>
+                )}
+              </span>
+              <span className="block font-mono text-[10px] truncate mt-0.5" style={{ color: 'var(--adm-text-3)' }}>
+                {f.env}
+              </span>
+            </span>
+            <span
+              className={`adm-badge shrink-0 ${
+                f.set ? 'adm-badge-ok' : f.required ? 'adm-badge-bad' : 'adm-badge-mute'
+              }`}
+            >
+              {f.set ? 'Set' : 'Not set'}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {int.note && (
+        <p className="text-[11px] mt-4 pt-3 leading-relaxed" style={{ borderTop: '1px solid var(--adm-line)', color: 'var(--adm-text-3)' }}>
+          {int.note}
+        </p>
+      )}
+    </Panel>
+  )
+}
+
 export default function SettingsView({
   integrations,
   webhookUrl,
@@ -25,6 +78,13 @@ export default function SettingsView({
   const [copied, setCopied] = useState(false)
   const incomplete = integrations.filter((i) => i.status === 'INCOMPLETE')
   const ready = integrations.length - incomplete.length
+
+  const core = integrations.filter((i) => !i.advanced)
+  const advanced = integrations.filter((i) => i.advanced)
+  // Open on arrival when something down there is broken. A missing Supabase key
+  // takes the whole site down, and hiding that behind a click would be perverse.
+  const advancedBroken = advanced.some((i) => i.status === 'INCOMPLETE')
+  const [advancedOpen, setAdvancedOpen] = useState(advancedBroken)
 
   const copy = async () => {
     try {
@@ -64,55 +124,60 @@ export default function SettingsView({
       )}
 
       <div className="grid lg:grid-cols-2 gap-3.5 mb-3.5">
-        {integrations.map((int, i) => (
-          <Panel key={int.key} className={`p-5 adm-rise adm-rise-${Math.min(i + 1, 4)}`}>
-            <div className="flex items-start justify-between gap-3 mb-1.5">
-              <h2 className="adm-display text-[15px]" style={{ color: 'var(--adm-text)' }}>{int.name}</h2>
-              <span className={`adm-badge ${int.status === 'READY' ? 'adm-badge-ok' : 'adm-badge-warn'}`}>
-                {int.status === 'READY' ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />}
-                {int.status === 'READY' ? 'Configured' : 'Incomplete'}
-              </span>
-            </div>
-
-            <p className="text-[12px] mb-4" style={{ color: 'var(--adm-text-2)' }}>{int.purpose}</p>
-
-            <div className="space-y-1.5">
-              {int.fields.map((f) => (
-                <div
-                  key={f.env}
-                  className="flex items-center justify-between gap-3 px-3 py-2"
-                  style={{ background: 'var(--adm-inset)', borderRadius: 8, border: '1px solid var(--adm-line)' }}
-                >
-                  <span className="min-w-0">
-                    <span className="block text-[12px]" style={{ color: 'var(--adm-text)' }}>
-                      {f.label}
-                      {!f.required && (
-                        <span className="text-[10px] ml-1.5" style={{ color: 'var(--adm-text-3)' }}>optional</span>
-                      )}
-                    </span>
-                    <span className="block font-mono text-[10px] truncate mt-0.5" style={{ color: 'var(--adm-text-3)' }}>
-                      {f.env}
-                    </span>
-                  </span>
-                  <span
-                    className={`adm-badge shrink-0 ${
-                      f.set ? 'adm-badge-ok' : f.required ? 'adm-badge-bad' : 'adm-badge-mute'
-                    }`}
-                  >
-                    {f.set ? 'Set' : 'Not set'}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {int.note && (
-              <p className="text-[11px] mt-4 pt-3 leading-relaxed" style={{ borderTop: '1px solid var(--adm-line)', color: 'var(--adm-text-3)' }}>
-                {int.note}
-              </p>
-            )}
-          </Panel>
+        {core.map((int, i) => (
+          <IntegrationCard key={int.key} int={int} rise={i + 1} />
         ))}
       </div>
+
+      {advanced.length > 0 && (
+        <details
+          open={advancedOpen}
+          onToggle={(e) => setAdvancedOpen(e.currentTarget.open)}
+          className="adm-rise adm-rise-3 mb-3.5"
+        >
+          <summary
+            className="flex items-center gap-2 cursor-pointer select-none list-none px-4 py-3"
+            style={{
+              background: 'var(--adm-panel)',
+              border: '1px solid var(--adm-line)',
+              borderRadius: 'var(--adm-r-sm)',
+              color: 'var(--adm-text-2)',
+            }}
+          >
+            <ChevronRight
+              size={14}
+              className="shrink-0"
+              style={{
+                transform: advancedOpen ? 'rotate(90deg)' : 'none',
+                transition: 'transform 180ms ease',
+              }}
+            />
+            <span className="text-[12.5px] font-medium" style={{ color: 'var(--adm-text)' }}>
+              Advanced
+            </span>
+            <span className="text-[11.5px]" style={{ color: 'var(--adm-text-3)' }}>
+              {advanced.map((i) => i.name).join(' · ')} — set once at setup
+            </span>
+            <span className="ml-auto flex items-center gap-1.5 shrink-0">
+              {advancedBroken ? (
+                <span className="adm-badge adm-badge-warn">
+                  <AlertTriangle size={11} /> Needs attention
+                </span>
+              ) : (
+                <span className="adm-badge adm-badge-ok">
+                  <CheckCircle2 size={11} /> All configured
+                </span>
+              )}
+            </span>
+          </summary>
+
+          <div className="grid lg:grid-cols-2 gap-3.5 mt-3.5">
+            {advanced.map((int, i) => (
+              <IntegrationCard key={int.key} int={int} rise={i + 1} />
+            ))}
+          </div>
+        </details>
+      )}
 
       <Panel className="p-5 mb-3.5 adm-rise adm-rise-4">
         <Eyebrow className="mb-1.5">Cashfree webhook</Eyebrow>

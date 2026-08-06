@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Heart, ShoppingBag, Trash2, Loader2 } from 'lucide-react'
 import PageHero from '@/components/PageHero'
 import ProductCard from '@/components/ProductCard'
+import { DEFAULT_SETTINGS, type StoreSettings } from '@/lib/settings'
 import SupabaseSetupNotice from '@/components/SupabaseSetupNotice'
 import type { Product } from '@/lib/types'
 import { useAuth } from '@/context/AuthContext'
@@ -13,7 +14,10 @@ import { isSupabaseConfigured } from '@/lib/supabase/client'
 import { fetchWishlist, removeFromWishlist, clearWishlist } from '@/lib/api'
 import { useConfirm } from '@/components/ConfirmDialog'
 
-export function WishlistPage({ products = [] }: { products?: Product[] }) {
+export function WishlistPage({
+  products = [],
+  settings = DEFAULT_SETTINGS,
+}: { products?: Product[]; settings?: StoreSettings }) {
   const PRODUCTS = products
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
@@ -135,7 +139,7 @@ export function WishlistPage({ products = [] }: { products?: Product[] }) {
                     Ready to order?
                   </p>
                   <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-                    Free shipping on orders over ₹999, and 7-day easy returns on everything.
+                    Free shipping on orders over ₹{settings.freeShippingOver.toLocaleString('en-IN')}, and 7-day easy returns on everything.
                   </p>
                 </div>
                 <Link

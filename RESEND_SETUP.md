@@ -40,9 +40,19 @@ Username is the literal string `resend` — not your email address. That trips m
 
 While you're in the Auth settings, also raise **Rate Limits → Emails per hour**; it stays at the low default even after you connect your own SMTP.
 
-## 3. Add the API key for order emails
+## 3. Paste the auth templates into Supabase
 
-Order confirmations and shipping notifications are sent by the app, not Supabase, so they use the API directly.
+Supabase renders its own emails, so it cannot use the TypeScript templates. Matching HTML is generated into [`emails/supabase/`](emails/supabase/) — paste each file into **Authentication → Email Templates**. See the [README](emails/supabase/README.md) there for which file goes where.
+
+Regenerate them after any design change:
+
+```bash
+node scripts/build-email-templates.mjs
+```
+
+## 4. Add the API key for the app's own emails
+
+Everything the app sends itself — welcome, order confirmation, shipped, delivered, cancelled, newsletter, contact — goes through the Resend API rather than SMTP.
 
 ```bash
 # .env.local
@@ -52,19 +62,35 @@ RESEND_FROM=Diamond Stepss <orders@diamondstepss.com>
 
 `RESEND_API_KEY` has no `NEXT_PUBLIC_` prefix on purpose — it must never reach the browser. [`lib/email.ts`](lib/email.ts) imports `server-only`, so the build fails loudly if anyone ever imports it into a client component.
 
-## 4. Confirm it works
+## 5. Confirm it works
 
 Sign in at `/login`. The code should arrive within seconds, and the email will show your domain rather than Supabase's.
 
+To check how any email looks without sending one, run the dev server and open **`/api/dev/emails`**. It lists every template and renders them through the same code the send path uses, so the preview cannot drift from what customers receive. The route returns 404 in production.
+
 ## What's wired
 
-| Email | Sent by | Trigger | Status |
-|---|---|---|---|
-| Sign-in OTP | Supabase (via Resend SMTP) | `/login` | Works once step 2 is done |
-| Order confirmation | App (`sendOrderConfirmation`) | Cashfree webhook | Written, not yet called — checkout doesn't create orders |
-| Shipped notification | App (`sendShippedEmail`) | Shiprocket webhook | Same |
+| Email | Sent by | Trigger |
+|---|---|---|
+| Sign-in code | Supabase (Resend SMTP) | `/login` |
+| Password reset | Supabase (Resend SMTP) | "Forgot password" on `/login` |
+| Confirm signup / email change / invite | Supabase (Resend SMTP) | Auth flows |
+| Welcome | App (`sendWelcomeEmail`) | First sign-in after signup, via `POST /api/account/welcome` |
+| Newsletter confirmation | App (`sendNewsletterWelcome`) | Footer signup |
+| Order confirmation | App (`sendOrderConfirmation`) | Cashfree webhook |
+| Shipped | App (`sendShippedEmail`) | Admin sets an order to SHIPPED |
+| Delivered | App (`sendDeliveredEmail`) | Admin sets an order to DELIVERED |
+| Cancelled | App (`sendCancelledEmail`) | Admin sets an order to CANCELLED |
+| Contact enquiry | App (`sendContactMessage`) | `/contact` form, replies to the customer |
 
-Both order emails render the order in the store's colours, and the confirmation highlights the **balance due on delivery** for partial-COD orders — the number customers most need to see before the courier arrives.
+All of them share one design system ([`lib/email-template.ts`](lib/email-template.ts)): the shop's black masthead, red rule and Outfit headings, on a light body. Dark-mode email support is inconsistent enough across clients that a dark body renders as unreadable grey in several of them, and a receipt is the wrong place to gamble on that.
+
+The order confirmation highlights the **balance due on delivery** for partial-COD orders — the number customers most need to see before the courier arrives.
+
+Two rules the send paths follow:
+
+- **A failed email never fails the action.** The subscription is saved, the order status is recorded, the account is created — a mail outage is logged, not surfaced. The exception is the contact form, which throws, because it tells the visitor their message was sent.
+- **The welcome email sends once**, claimed via `profiles.welcomed_at` before sending, so a reload or a retry cannot mail the customer twice.
 
 ## Troubleshooting
 

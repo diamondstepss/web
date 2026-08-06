@@ -2,11 +2,14 @@ import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import ShopPage from '@/components/pages/ShopPage'
 import { getProducts } from '@/lib/catalog'
+import { getStoreSettings } from '@/lib/settings'
 
-export const metadata: Metadata = {
-  title: 'Shop All',
-  description:
-    'Every product in stock — sneakers, sports shoes, loafers and accessories. Filter by brand, size, price and discount. Free shipping over ₹999.',
+export async function generateMetadata(): Promise<Metadata> {
+  const { freeShippingOver } = await getStoreSettings()
+  return {
+    title: 'Shop All',
+    description: `Every product in stock — sneakers, sports shoes, loafers and accessories. Filter by brand, size, price and discount. Free shipping over ₹${freeShippingOver.toLocaleString('en-IN')}.`,
+  }
 }
 
 export default async function Page() {
