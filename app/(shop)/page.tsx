@@ -4,6 +4,7 @@ import ReviewsSection from '@/components/ReviewsSection'
 import { getProducts, getSaleProducts, getCategories } from '@/lib/catalog'
 import { getReviews } from '@/lib/reviews'
 import { getStoreSettings } from '@/lib/settings'
+import { getHomeSections } from '@/lib/sections'
 
 export async function generateMetadata(): Promise<Metadata> {
   const { freeShippingOver } = await getStoreSettings()
@@ -13,12 +14,13 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Page() {
-  const [products, sale, categories, reviews, settings] = await Promise.all([
+  const [products, sale, categories, reviews, settings, sections] = await Promise.all([
     getProducts(),
     getSaleProducts(),
     getCategories(),
     getReviews(),
     getStoreSettings(),
+    getHomeSections(),
   ])
   return (
     <HomePage
@@ -26,6 +28,7 @@ export default async function Page() {
       saleProducts={sale}
       categories={categories}
       settings={settings}
+      sections={sections}
       // Rendered here rather than inside HomePage so the reviews query stays on
       // the server — HomePage is a client component.
       reviewsSlot={<ReviewsSection reviews={reviews} />}

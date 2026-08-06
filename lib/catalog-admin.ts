@@ -305,6 +305,14 @@ export interface HomepageSection {
   item_limit: number
   position: number
   is_visible: boolean
+  /**
+   * Optional schedule. Either may be null.
+   *
+   * The columns have existed since 0011 and nothing ever set or read them, so a
+   * shop wanting a Diwali rail had to remember to switch it on and off by hand.
+   */
+  starts_at: string | null
+  ends_at: string | null
 }
 
 export async function adminFetchSections(): Promise<HomepageSection[]> {

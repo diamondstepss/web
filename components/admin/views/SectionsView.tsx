@@ -40,6 +40,38 @@ const SOURCE_LABEL: Record<string, string> = {
 /** Only rails pull a product list; the rest are fixed layout blocks. */
 const NEEDS_SOURCE = (type: string) => type === 'PRODUCT_RAIL'
 
+/**
+ * <input type="datetime-local"> speaks local time with no zone; Postgres stores
+ * timestamptz. These convert between the two, so a shop in IST does not
+ * accidentally schedule a banner against UTC.
+ */
+function toLocalInput(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function fromLocalInput(v: string): string | null {
+  if (!v) return null
+  const d = new Date(v)
+  return Number.isNaN(d.getTime()) ? null : d.toISOString()
+}
+
+/** Plain English, so nobody has to read two ISO strings to know what happens. */
+function scheduleNote(startsAt: string | null, endsAt: string | null): string {
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+  const now = Date.now()
+  if (startsAt && new Date(startsAt).getTime() > now) {
+    return `Hidden until ${fmt(startsAt)}${endsAt ? `, then shown until ${fmt(endsAt)}` : ''}.`
+  }
+  if (endsAt && new Date(endsAt).getTime() < now) return `Ended ${fmt(endsAt)} — no longer shown.`
+  if (endsAt) return `Showing now, hides after ${fmt(endsAt)}.`
+  return 'Showing now.'
+}
+
 export default function SectionsView() {
   const confirm = useConfirm()
   const [rows, setRows] = useState<HomepageSection[]>([])
@@ -106,6 +138,8 @@ export default function SectionsView() {
         source_slug: NEEDS_SOURCE(current.type) ? current.source_slug : null,
         item_limit: current.item_limit,
         is_visible: current.is_visible,
+        starts_at: current.starts_at || null,
+        ends_at: current.ends_at || null,
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2200)
@@ -127,6 +161,8 @@ export default function SectionsView() {
         source_slug: null,
         item_limit: 8,
         is_visible: false,
+        starts_at: null,
+        ends_at: null,
         position: rows.length + 1,
       })
       await load()
@@ -338,6 +374,34 @@ export default function SectionsView() {
                     />
                   </AdminField>
                 </>
+              )}
+
+              {/* Scheduling. A festive rail can be set up in advance and will
+                  take itself down — which is the difference between a shop that
+                  looks current and one that still says Diwali in December. */}
+              <div className="grid grid-cols-2 gap-3">
+                <AdminField label="Show from" hint="Optional.">
+                  <input
+                    type="datetime-local"
+                    value={toLocalInput(current.starts_at)}
+                    onChange={(e) => patch(current.id, { starts_at: fromLocalInput(e.target.value) })}
+                    className="adm-input"
+                  />
+                </AdminField>
+                <AdminField label="Hide after" hint="Optional.">
+                  <input
+                    type="datetime-local"
+                    value={toLocalInput(current.ends_at)}
+                    onChange={(e) => patch(current.id, { ends_at: fromLocalInput(e.target.value) })}
+                    className="adm-input"
+                  />
+                </AdminField>
+              </div>
+
+              {(current.starts_at || current.ends_at) && (
+                <p className="text-[11px]" style={{ color: 'var(--adm-text-3)' }}>
+                  {scheduleNote(current.starts_at, current.ends_at)}
+                </p>
               )}
 
               <label

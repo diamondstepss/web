@@ -74,7 +74,7 @@ const KEY =
  * `revalidate: 60` keeps catalog pages static but never more than a minute
  * stale — an admin edit shows up without a rebuild.
  */
-async function rest<T>(path: string, revalidate = 60): Promise<T[]> {
+export async function rest<T>(path: string, revalidate = 60): Promise<T[]> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !KEY) return []
   try {
     const res = await fetch(`${REST}/${path}`, {
