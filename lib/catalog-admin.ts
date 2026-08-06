@@ -1,6 +1,7 @@
 'use client'
 
 import { db } from './supabase/client'
+import { deleteProductFiles } from './media'
 import type { DbProduct, DbCategory } from './catalog'
 
 /**
@@ -75,6 +76,10 @@ export async function updateProduct(id: string, patch: Partial<ProductInput>): P
 }
 
 export async function deleteProduct(id: string): Promise<void> {
+  // Storage first: after the row is gone there is no record of what was
+  // uploaded, and the files would sit in the bucket forever.
+  await deleteProductFiles(id)
+
   const { error } = await db().from('products').delete().eq('id', id)
   if (error) throw error
   await revalidateCatalog()

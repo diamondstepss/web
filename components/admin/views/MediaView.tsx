@@ -1,25 +1,93 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { Play, ImageIcon } from 'lucide-react'
+import { Play, ImageIcon, Trash2, Search, Loader2 } from 'lucide-react'
 import { adminFetchMedia, type MediaRow } from '@/lib/catalog-admin'
-import { Panel, PageHeading, ErrorNote, EmptyState } from '@/components/admin/shared'
+import { deleteImage, findOrphanedFiles, deleteFiles, type Orphan, type GalleryImage } from '@/lib/media'
+import { Panel, PageHeading, ErrorNote, EmptyState, Eyebrow } from '@/components/admin/shared'
+import { useConfirm } from '@/components/ConfirmDialog'
 
 type Row = MediaRow & { products?: { title: string } | null }
 
+const kb = (bytes: number) => `${Math.max(1, Math.round(bytes / 1024))} KB`
+
 export default function MediaView() {
+  const confirm = useConfirm()
   const [rows, setRows] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<'ALL' | 'IMAGE' | 'YOUTUBE'>('ALL')
+  const [busyId, setBusyId] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Orphan scan is deliberately on demand: it lists every folder in the bucket
+  // and cannot be cheap, so it should not run on every visit to this page.
+  const [orphans, setOrphans] = useState<Orphan[] | null>(null)
+  const [scanning, setScanning] = useState(false)
+  const [cleaning, setCleaning] = useState(false)
+
+  const load = useCallback(() => {
+    setLoading(true)
     adminFetchMedia()
       .then((r) => setRows(r as Row[]))
       .catch((e) => setError(e instanceof Error ? e.message : 'Could not load media.'))
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(load, [load])
+
+  const remove = async (m: Row) => {
+    const ok = await confirm({
+      title: 'Delete this asset?',
+      message: `It will be removed from ${m.products?.title ?? 'the product'} and deleted from storage. This cannot be undone.`,
+      confirmLabel: 'Delete asset',
+    })
+    if (!ok) return
+
+    setBusyId(m.id)
+    setError(null)
+    try {
+      await deleteImage(m as unknown as GalleryImage)
+      load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not delete that asset.')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const scan = async () => {
+    setScanning(true)
+    setError(null)
+    try {
+      setOrphans(await findOrphanedFiles())
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not scan storage.')
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  const cleanUp = async () => {
+    if (!orphans?.length) return
+    const total = orphans.reduce((n, o) => n + o.size, 0)
+    const ok = await confirm({
+      title: `Delete ${orphans.length} unused file${orphans.length === 1 ? '' : 's'}?`,
+      message: `${kb(total)} will be freed. These files are not used by any product, so nothing on the storefront changes.`,
+      confirmLabel: 'Delete files',
+    })
+    if (!ok) return
+
+    setCleaning(true)
+    try {
+      await deleteFiles(orphans.map((o) => o.path))
+      setOrphans([])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not delete those files.')
+    } finally {
+      setCleaning(false)
+    }
+  }
 
   const shown = filter === 'ALL' ? rows : rows.filter((m) => m.type === filter)
   const counts = {
@@ -33,7 +101,7 @@ export default function MediaView() {
     <div>
       <PageHeading
         title="Media"
-        description="Every asset attached to a product. To add or remove one, open that product's gallery."
+        description="Every asset attached to a product. Delete one here, or open its product to add more."
         meta={loading ? 'Loading…' : `${rows.length} assets`}
       >
         <div className="flex gap-1.5">
@@ -77,36 +145,81 @@ export default function MediaView() {
 
       <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(144px, 1fr))' }}>
         {shown.map((m, i) => (
-          <Link
+          <div
             key={m.id}
-            href={`/admin/products/${m.product_id}`}
-            className={`adm-panel adm-panel-int overflow-hidden block adm-rise adm-rise-${Math.min((i % 4) + 1, 4)}`}
-            title={`Open ${m.products?.title ?? 'product'}`}
+            className={`adm-panel overflow-hidden adm-rise adm-rise-${Math.min((i % 4) + 1, 4)}`}
+            style={{ position: 'relative' }}
           >
-            <div style={{ aspectRatio: '1/1', background: 'var(--adm-inset)', position: 'relative' }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={m.type === 'YOUTUBE' ? (m.alt ?? m.url) : m.url}
-                alt={m.products?.title ?? ''}
-                className="w-full h-full object-cover"
-              />
-              {m.type === 'YOUTUBE' && (
-                <span className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.38)' }}>
-                  <span
-                    className="flex items-center justify-center"
-                    style={{ width: 32, height: 32, borderRadius: 99, background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.25)' }}
-                  >
-                    <Play size={13} color="#fff" fill="#fff" />
+            <Link href={`/admin/products/${m.product_id}`} title={`Open ${m.products?.title ?? 'product'}`}>
+              <div style={{ aspectRatio: '1/1', background: 'var(--adm-inset)', position: 'relative' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={m.type === 'YOUTUBE' ? (m.alt ?? m.url) : m.url}
+                  alt={m.products?.title ?? ''}
+                  className="w-full h-full object-cover"
+                />
+                {m.type === 'YOUTUBE' && (
+                  <span className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.38)' }}>
+                    <span
+                      className="flex items-center justify-center"
+                      style={{ width: 32, height: 32, borderRadius: 99, background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.25)' }}
+                    >
+                      <Play size={13} color="#fff" fill="#fff" />
+                    </span>
                   </span>
-                </span>
-              )}
+                )}
+              </div>
+            </Link>
+
+            <div className="flex items-center gap-1 px-2.5 py-2">
+              <p className="text-[11px] truncate flex-1" style={{ color: 'var(--adm-text-2)' }}>
+                {m.products?.title || m.type}
+              </p>
+              <button
+                onClick={() => remove(m)}
+                disabled={busyId === m.id}
+                aria-label={`Delete asset from ${m.products?.title ?? 'product'}`}
+                className="adm-icon-btn shrink-0"
+                style={{ width: 22, height: 22, color: 'var(--adm-bad)' }}
+              >
+                {busyId === m.id ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+              </button>
             </div>
-            <p className="px-2.5 py-2 text-[11px] truncate" style={{ color: 'var(--adm-text-2)' }}>
-              {m.products?.title || m.type}
-            </p>
-          </Link>
+          </div>
         ))}
       </div>
+
+      {/* ── Unused files ──────────────────────────────────────────────────── */}
+      <Panel className="p-5 mt-4 adm-rise adm-rise-4">
+        <Eyebrow className="mb-1.5">Storage housekeeping</Eyebrow>
+        <p className="text-[12px] mb-3.5 max-w-2xl leading-relaxed" style={{ color: 'var(--adm-text-2)' }}>
+          Files can be left behind in storage when a product is deleted, or when an upload half-finishes.
+          They are invisible everywhere else and still count against your storage. This finds them.
+        </p>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={scan} disabled={scanning} className="adm-btn adm-btn-ghost">
+            {scanning ? <Loader2 size={12} className="animate-spin" /> : <Search size={12} />}
+            {scanning ? 'Scanning…' : 'Scan storage'}
+          </button>
+
+          {orphans !== null && orphans.length > 0 && (
+            <button onClick={cleanUp} disabled={cleaning} className="adm-btn adm-btn-danger">
+              {cleaning ? 'Deleting…' : `Delete ${orphans.length} unused file${orphans.length === 1 ? '' : 's'}`}
+            </button>
+          )}
+        </div>
+
+        {orphans !== null && (
+          <p className="text-[11.5px] mt-3" style={{ color: orphans.length ? 'var(--adm-warn)' : 'var(--adm-ok)' }}>
+            {orphans.length === 0
+              ? 'Nothing unused — every file in storage belongs to a product.'
+              : `${orphans.length} unused file${orphans.length === 1 ? '' : 's'}, ${kb(
+                  orphans.reduce((n, o) => n + o.size, 0),
+                )} in total.`}
+          </p>
+        )}
+      </Panel>
     </div>
   )
 }
