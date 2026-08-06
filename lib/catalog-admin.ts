@@ -10,6 +10,13 @@ import type { DbProduct, DbCategory } from './catalog'
  */
 
 /** Storefront pages cache the catalog for 60s; a write should show up now. */
+/**
+ * Clears the storefront cache after an admin change.
+ *
+ * Not called by the coupon functions, deliberately: coupon codes are read
+ * uncached at checkout by lib/server/pricing.ts, so a new code works the moment
+ * it is saved and there is nothing to purge.
+ */
 async function revalidateCatalog() {
   try {
     await fetch('/api/revalidate', { method: 'POST' })
