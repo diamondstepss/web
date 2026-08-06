@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { ErrorNote } from '@/components/admin/shared'
+import { ImageField } from '@/components/admin/ImageField'
 
 /**
  * One editor for every list in the admin.
@@ -30,7 +31,7 @@ import { ErrorNote } from '@/components/admin/shared'
 export interface Field {
   key: string
   label: string
-  type?: 'text' | 'textarea' | 'number' | 'select' | 'checkbox'
+  type?: 'text' | 'textarea' | 'number' | 'select' | 'checkbox' | 'image'
   hint?: string
   required?: boolean
   mono?: boolean
@@ -78,7 +79,10 @@ export function EditDialog<T extends Record<string, unknown>>({
       const next = f.type === 'number' ? Number(form[f.key]) : form[f.key]
       const before = value[f.key] ?? (f.type === 'checkbox' ? false : '')
       if (String(next) !== String(before)) {
-        patch[f.key] = f.type === 'text' || f.type === 'textarea' ? (String(next).trim() || null) : next
+        patch[f.key] =
+          f.type === 'text' || f.type === 'textarea' || f.type === 'image'
+            ? String(next).trim() || null
+            : next
       }
     }
 
@@ -138,7 +142,12 @@ export function EditDialog<T extends Record<string, unknown>>({
                 {f.label}
               </span>
 
-              {f.type === 'textarea' ? (
+              {f.type === 'image' ? (
+                <ImageField
+                  value={String(form[f.key] ?? '')}
+                  onChange={(url) => setForm((st) => ({ ...st, [f.key]: url }))}
+                />
+              ) : f.type === 'textarea' ? (
                 <textarea
                   rows={3}
                   required={f.required}

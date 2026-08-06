@@ -174,7 +174,7 @@ export default function CollectionsView() {
             { key: 'name', label: 'Name', required: true },
             { key: 'slug', label: 'URL slug', mono: true, hint: 'Changing this breaks any existing links to the collection.' },
             { key: 'description', label: 'Description', type: 'textarea' },
-            { key: 'image', label: 'Image URL', hint: 'Optional. Used by homepage rails that show a cover.' },
+            { key: 'image', label: 'Cover image', type: 'image', hint: 'Used by homepage rails that show a cover. Generate one if you have no photo yet.' },
           ]}
           onSave={async (patch) => {
             await updateCollection(editing.id, patch)

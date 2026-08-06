@@ -191,7 +191,7 @@ export default function CategoriesView() {
           fields={[
             { key: 'name', label: 'Name', required: true },
             { key: 'slug', label: 'URL slug', mono: true, hint: 'Changing this breaks existing links and any saved SEO ranking.' },
-            { key: 'image', label: 'Image URL', hint: 'Optional cover image.' },
+            { key: 'image', label: 'Cover image', type: 'image', hint: 'Shown on the category tile. Generate one if you have no photo yet.' },
             { key: 'position', label: 'Order', type: 'number', min: 0, hint: 'Lower numbers appear first.' },
           ]}
           onSave={async (patch) => {

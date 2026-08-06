@@ -83,6 +83,33 @@ export interface CheckoutOrder {
   storeName: string
 }
 
+export interface BannerOccasion {
+  id: string
+  label: string
+  season: string
+}
+
+export interface BannerFormat {
+  id: string
+  label: string
+  aspect: string
+}
+
+export interface BannerOffer {
+  configured: boolean
+  creditsPerBanner: number
+  occasions: BannerOccasion[]
+  formats: BannerFormat[]
+}
+
+export interface BannerResult {
+  url: string
+  aspect: string
+  expiresInSeconds: number
+  creditsCharged: number
+  creditsRemaining: number
+}
+
 export interface Balance {
   credits: number
   /** Below this the admin nags. The service decides what "low" means. */
@@ -165,6 +192,29 @@ export function generateDescription(
 
 export function getBalance(): Promise<Balance> {
   return call<Balance>('/v1/balance', { method: 'GET' })
+}
+
+/** Occasions and formats a banner can be generated for. */
+export function getBannerOptions(): Promise<BannerOffer> {
+  return call<BannerOffer>('/v1/generate/banner', { method: 'GET' })
+}
+
+/**
+ * Generates one banner.
+ *
+ * The URL that comes back is short-lived — the provider deletes it within the
+ * hour — so the caller must download and store it rather than saving the link.
+ */
+export function generateBanner(
+  occasion: string,
+  format: string,
+  idempotencyKey: string,
+): Promise<BannerResult> {
+  return call<BannerResult>('/v1/generate/banner', {
+    method: 'POST',
+    body: { occasion, format },
+    idempotencyKey,
+  })
 }
 
 /** The packs on offer, priced by the service rather than by us. */
