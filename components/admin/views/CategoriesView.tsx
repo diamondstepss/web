@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { Plus, Tag, ImageOff, X } from 'lucide-react'
+import { Plus, Tag, ImageOff, X, Pencil } from 'lucide-react'
 import type { DbCategory } from '@/lib/catalog'
 import {
   adminFetchCategories,
@@ -12,9 +12,11 @@ import {
 } from '@/lib/catalog-admin'
 import { useConfirm } from '@/components/ConfirmDialog'
 import { AdminField, Panel, Eyebrow, PageHeading, ErrorNote, EmptyState } from '@/components/admin/shared'
+import { EditDialog } from '@/components/admin/EditDialog'
 
 export default function CategoriesView() {
   const confirm = useConfirm()
+  const [editing, setEditing] = useState<DbCategory | null>(null)
   const [rows, setRows] = useState<DbCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -138,13 +140,28 @@ export default function CategoriesView() {
                     await updateCategory(c.id, { is_active: !c.is_active })
                     await load()
                   }}
-                  className={`adm-badge ${c.is_active ? 'adm-badge-ok' : 'adm-badge-mute'} shrink-0`}
-                  title={c.is_active ? 'Visible on the storefront' : 'Hidden'}
+                  className="adm-btn adm-btn-ghost shrink-0"
+                  style={{ height: 25, padding: '0 9px' }}
+                  title={c.is_active ? 'Hide from the storefront' : 'Show on the storefront'}
                 >
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 7, height: 7, borderRadius: 99,
+                      background: c.is_active ? 'var(--adm-ok)' : 'var(--adm-text-3)',
+                    }}
+                  />
                   {c.is_active ? 'Live' : 'Hidden'}
                 </button>
               </div>
-              <div className="flex justify-end mt-3.5 pt-3.5" style={{ borderTop: '1px solid var(--adm-line)' }}>
+              <div className="flex justify-end gap-2 mt-3.5 pt-3.5" style={{ borderTop: '1px solid var(--adm-line)' }}>
+                <button
+                  onClick={() => setEditing(c)}
+                  className="adm-btn adm-btn-ghost"
+                  style={{ height: 27, padding: '0 10px' }}
+                >
+                  <Pencil size={12} /> Edit
+                </button>
                 <button
                   onClick={async () => {
                     const ok = await confirm({
@@ -167,6 +184,23 @@ export default function CategoriesView() {
           </Panel>
         ))}
       </div>
+      {editing && (
+        <EditDialog
+          title="Edit category"
+          value={editing as unknown as Record<string, unknown>}
+          fields={[
+            { key: 'name', label: 'Name', required: true },
+            { key: 'slug', label: 'URL slug', mono: true, hint: 'Changing this breaks existing links and any saved SEO ranking.' },
+            { key: 'image', label: 'Image URL', hint: 'Optional cover image.' },
+            { key: 'position', label: 'Order', type: 'number', min: 0, hint: 'Lower numbers appear first.' },
+          ]}
+          onSave={async (patch) => {
+            await updateCategory(editing.id, patch)
+            await load()
+          }}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   )
 }

@@ -52,6 +52,10 @@ export default function ProductFormView({ productId }: { productId?: string }) {
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setF((prev) => ({ ...prev, [k]: e.target.value }))
 
+  // An accessory is simply a product with no sizes — the same condition the
+  // storefront, cart and order emails already use to skip the size picker.
+  const isAccessory = f.sizes.trim() === ''
+
   // Live discount readout — saves doing the arithmetic in your head.
   const priceN = Number(f.price) || 0
   const mrpN = Number(f.mrp) || 0
@@ -210,8 +214,37 @@ export default function ProductFormView({ productId }: { productId?: string }) {
               </AdminField>
             </div>
             <div className="mt-4">
-              <AdminField label="Sizes (UK)" hint="Comma separated. Leave blank for one-size items like bags.">
-                <input value={f.sizes} onChange={set('sizes')} placeholder="6, 7, 8, 9, 10, 11" className="adm-input" />
+              {/* Accessory is not a column — it is "this product has no sizes",
+                  which is how the storefront, the cart and the emails already
+                  decide whether to ask for one. Making it an explicit switch
+                  rather than an empty text box means the shop owner is never
+                  guessing what a blank field does. */}
+              <AdminField
+                label="Sizes (UK)"
+                hint={
+                  isAccessory
+                    ? 'Accessories are sold one-size, so no size is asked for at checkout.'
+                    : 'Comma separated, e.g. 6, 7, 8, 9, 10, 11.'
+                }
+              >
+                <label className="flex items-center gap-2 mb-2 text-[12px]" style={{ color: 'var(--adm-text-2)' }}>
+                  <input
+                    type="checkbox"
+                    checked={isAccessory}
+                    onChange={(e) =>
+                      setF((prev) => ({ ...prev, sizes: e.target.checked ? '' : '6, 7, 8, 9, 10, 11' }))
+                    }
+                  />
+                  This is an accessory — one size, no size picker
+                </label>
+                <input
+                  value={f.sizes}
+                  onChange={set('sizes')}
+                  disabled={isAccessory}
+                  placeholder={isAccessory ? 'One size' : '6, 7, 8, 9, 10, 11'}
+                  className="adm-input"
+                  style={isAccessory ? { opacity: 0.5 } : undefined}
+                />
               </AdminField>
             </div>
           </Panel>

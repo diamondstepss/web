@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { Plus, Percent , MoveHorizontal } from 'lucide-react'
+import { Plus, Percent, MoveHorizontal, Pencil } from 'lucide-react'
 import {
   adminFetchCoupons,
   createCoupon,
@@ -10,6 +10,7 @@ import {
   type Coupon,
 } from '@/lib/catalog-admin'
 import { useConfirm } from '@/components/ConfirmDialog'
+import { EditDialog } from '@/components/admin/EditDialog'
 import {
   inr,
   AdminField,
@@ -23,6 +24,7 @@ import {
 
 export default function CouponsView() {
   const confirm = useConfirm()
+  const [editing, setEditing] = useState<Coupon | null>(null)
   const [rows, setRows] = useState<Coupon[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -197,12 +199,28 @@ export default function CouponsView() {
                           await updateCoupon(c.id, { is_active: !c.is_active })
                           await load()
                         }}
-                        className={`adm-badge ${c.is_active ? 'adm-badge-ok' : 'adm-badge-mute'}`}
+                        className="adm-btn adm-btn-ghost"
+                        style={{ height: 25, padding: '0 9px' }}
+                        title={c.is_active ? 'Pause this coupon' : 'Make this coupon usable again'}
                       >
+                        <span
+                          aria-hidden
+                          style={{
+                            width: 7, height: 7, borderRadius: 99,
+                            background: c.is_active ? 'var(--adm-ok)' : 'var(--adm-text-3)',
+                          }}
+                        />
                         {c.is_active ? 'Active' : 'Paused'}
                       </button>
                     </td>
-                    <td className="text-right">
+                    <td className="text-right whitespace-nowrap">
+                      <button
+                        onClick={() => setEditing(c)}
+                        className="adm-btn adm-btn-ghost mr-2"
+                        style={{ height: 27, padding: '0 10px' }}
+                      >
+                        <Pencil size={12} /> Edit
+                      </button>
                       <button
                         onClick={async () => {
                           const ok = await confirm({
@@ -229,6 +247,32 @@ export default function CouponsView() {
           </>
         )}
       </Panel>
+
+      {editing && (
+        <EditDialog
+          title={`Edit ${editing.code}`}
+          value={editing as unknown as Record<string, unknown>}
+          fields={[
+            { key: 'code', label: 'Code', required: true, mono: true, hint: 'Customers type this at checkout. Changing it stops the old one working.' },
+            {
+              key: 'type', label: 'Discount type', type: 'select',
+              options: [
+                { value: 'PERCENT', label: 'Percentage off' },
+                { value: 'FLAT', label: 'Flat amount off' },
+                { value: 'FREESHIP', label: 'Free shipping' },
+              ],
+            },
+            { key: 'value', label: 'Value', type: 'number', min: 0, hint: 'Percent for PERCENT, rupees for FLAT. Ignored for FREESHIP.' },
+            { key: 'min_order', label: 'Minimum order ₹', type: 'number', min: 0 },
+            { key: 'usage_limit', label: 'Usage limit', type: 'number', min: 0, hint: 'Leave blank for unlimited. Uses so far are not reset by editing.' },
+          ]}
+          onSave={async (patch) => {
+            await updateCoupon(editing.id, patch)
+            await load()
+          }}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   )
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { Plus, FolderOpen } from 'lucide-react'
+import { Plus, FolderOpen, Pencil } from 'lucide-react'
 import {
   adminFetchCollections,
   createCollection,
@@ -12,9 +12,11 @@ import {
 } from '@/lib/catalog-admin'
 import { useConfirm } from '@/components/ConfirmDialog'
 import { AdminField, Panel, Eyebrow, PageHeading, ErrorNote, EmptyState } from '@/components/admin/shared'
+import { EditDialog } from '@/components/admin/EditDialog'
 
 export default function CollectionsView() {
   const confirm = useConfirm()
+  const [editing, setEditing] = useState<(typeof rows)[number] | null>(null)
   const [rows, setRows] = useState<(Collection & { count: number })[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -111,16 +113,36 @@ export default function CollectionsView() {
               <p className="text-[11.5px] mt-2.5 leading-relaxed" style={{ color: 'var(--adm-text-2)' }}>{c.description}</p>
             )}
 
-            <div className="flex items-center justify-between gap-3 mt-4 pt-4" style={{ borderTop: '1px solid var(--adm-line)' }}>
+            <div className="flex items-center justify-between gap-2 mt-4 pt-4" style={{ borderTop: '1px solid var(--adm-line)' }}>
+              {/* A switch, not a badge. The old version looked like a status
+                  label, so nobody realised a collection could be hidden. */}
               <button
                 onClick={async () => {
                   await updateCollection(c.id, { is_active: !c.is_active })
                   await load()
                 }}
-                className={`adm-badge ${c.is_active ? 'adm-badge-ok' : 'adm-badge-mute'}`}
+                title={c.is_active ? 'Hide from the storefront' : 'Show on the storefront'}
+                className="adm-btn adm-btn-ghost"
+                style={{ height: 27, padding: '0 10px' }}
               >
+                <span
+                  aria-hidden
+                  style={{
+                    width: 7, height: 7, borderRadius: 99,
+                    background: c.is_active ? 'var(--adm-ok)' : 'var(--adm-text-3)',
+                  }}
+                />
                 {c.is_active ? 'Live' : 'Hidden'}
               </button>
+
+              <span className="flex gap-2">
+                <button
+                  onClick={() => setEditing(c)}
+                  className="adm-btn adm-btn-ghost"
+                  style={{ height: 27, padding: '0 10px' }}
+                >
+                  <Pencil size={12} /> Edit
+                </button>
               <button
                 onClick={async () => {
                   const ok = await confirm({
@@ -135,13 +157,32 @@ export default function CollectionsView() {
                 }}
                 className="adm-btn adm-btn-danger"
                 style={{ height: 27, padding: '0 10px' }}
-              >
-                Delete
-              </button>
+                >
+                  Delete
+                </button>
+              </span>
             </div>
           </Panel>
         ))}
       </div>
+
+      {editing && (
+        <EditDialog
+          title="Edit collection"
+          value={editing as unknown as Record<string, unknown>}
+          fields={[
+            { key: 'name', label: 'Name', required: true },
+            { key: 'slug', label: 'URL slug', mono: true, hint: 'Changing this breaks any existing links to the collection.' },
+            { key: 'description', label: 'Description', type: 'textarea' },
+            { key: 'image', label: 'Image URL', hint: 'Optional. Used by homepage rails that show a cover.' },
+          ]}
+          onSave={async (patch) => {
+            await updateCollection(editing.id, patch)
+            await load()
+          }}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   )
 }
