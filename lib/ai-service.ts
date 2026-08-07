@@ -116,6 +116,29 @@ export interface Balance {
   lowWater: number
 }
 
+export interface PhotoPreset {
+  id: string
+  label: string
+  description: string
+}
+
+export interface PhotoEnhanceOffer {
+  configured: boolean
+  creditsPerPhoto: number
+  presets: PhotoPreset[]
+}
+
+export interface PhotoEnhanceResult {
+  url: string
+  /** False on the rare case the re-framing step failed — the model's own
+   *  output still came back, it just won't line up with the rest of the
+   *  catalogue the way a framed one does. */
+  framed: boolean
+  expiresInSeconds: number
+  creditsCharged: number
+  creditsRemaining: number
+}
+
 async function call<T>(
   path: string,
   init: { method: 'GET' | 'POST'; body?: unknown; idempotencyKey?: string },
@@ -213,6 +236,29 @@ export function generateBanner(
   return call<BannerResult>('/v1/generate/banner', {
     method: 'POST',
     body: { occasion, format },
+    idempotencyKey,
+  })
+}
+
+/** Presets a photo can be cleaned up with. */
+export function getPhotoPresets(): Promise<PhotoEnhanceOffer> {
+  return call<PhotoEnhanceOffer>('/v1/enhance/photo', { method: 'GET' })
+}
+
+/**
+ * Cleans up one photo.
+ *
+ * The URL that comes back is short-lived, same as a banner — the caller must
+ * download and store it rather than saving the link.
+ */
+export function enhancePhoto(
+  imageUrl: string,
+  presetId: string,
+  idempotencyKey: string,
+): Promise<PhotoEnhanceResult> {
+  return call<PhotoEnhanceResult>('/v1/enhance/photo', {
+    method: 'POST',
+    body: { imageUrl, presetId },
     idempotencyKey,
   })
 }

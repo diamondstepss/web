@@ -13,6 +13,7 @@ import {
 import { useConfirm } from '@/components/ConfirmDialog'
 import { AdminField, Panel, Eyebrow, PageHeading, ErrorNote, EmptyState } from '@/components/admin/shared'
 import { EditDialog } from '@/components/admin/EditDialog'
+import { ImageField } from '@/components/admin/ImageField'
 
 export default function CategoriesView() {
   const confirm = useConfirm()
@@ -89,8 +90,8 @@ export default function CategoriesView() {
                 className="adm-input font-mono text-[12px]"
               />
             </AdminField>
-            <AdminField label="Image URL" hint="Shown on the homepage category tile.">
-              <input value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} className="adm-input" />
+            <AdminField label="Cover image" hint="Shown on the homepage category tile. Generate one if you have no photo yet.">
+              <ImageField value={form.image} onChange={(url) => setForm({ ...form, image: url })} />
             </AdminField>
             <button type="submit" disabled={busy} className="adm-btn adm-btn-primary sm:col-span-3 justify-self-start">
               {busy ? 'Saving…' : 'Create category'}

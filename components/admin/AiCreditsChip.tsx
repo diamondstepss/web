@@ -20,6 +20,13 @@ interface BalanceResponse {
  * they use to run the shop.
  *
  * Top-up happens in the add-on's own dashboard, so this only ever links out.
+ * Deliberately not an embedded Razorpay Checkout: that key and merchant
+ * account are ThinkrAI's, for a transaction between the shop owner and
+ * ThinkrAI, not Diamond Stepss — running it inside this admin would put a
+ * second, unrelated business's payment flow inside a domain and merchant
+ * account that isn't party to it, which is exactly the kind of thing that
+ * gets a payment gateway account flagged. The shop owner leaves to pay
+ * ThinkrAI on ThinkrAI's own site, same as they would for any other vendor.
  */
 export default function AiCreditsChip() {
   const [state, setState] = useState<BalanceResponse | null>(null)
@@ -35,7 +42,13 @@ export default function AiCreditsChip() {
   }, [])
 
   useEffect(() => {
-    void load()
+    let ignore = false
+    fetch('/api/admin/ai/balance', { cache: 'no-store' })
+      .then((res) => (res.ok ? (res.json() as Promise<BalanceResponse>) : { configured: false }))
+      .catch(() => ({ configured: false }) as BalanceResponse)
+      .then((data) => {
+        if (!ignore) setState(data)
+      })
 
     const onChange = (e: Event) => {
       const credits = (e as CustomEvent<{ credits?: number }>).detail?.credits
@@ -49,7 +62,10 @@ export default function AiCreditsChip() {
     }
 
     window.addEventListener(AI_CREDITS_EVENT, onChange)
-    return () => window.removeEventListener(AI_CREDITS_EVENT, onChange)
+    return () => {
+      ignore = true
+      window.removeEventListener(AI_CREDITS_EVENT, onChange)
+    }
   }, [load])
 
   if (!state?.configured || typeof state.credits !== 'number') return null

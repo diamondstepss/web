@@ -1,14 +1,21 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { Play, ImageIcon, Trash2, Search, Loader2 } from 'lucide-react'
+import { Play, ImageIcon, Trash2, Search, Loader2, Sparkles } from 'lucide-react'
 import { adminFetchMedia, type MediaRow } from '@/lib/catalog-admin'
 import { deleteImage, findOrphanedFiles, deleteFiles, type Orphan, type GalleryImage } from '@/lib/media'
 import { Panel, PageHeading, ErrorNote, EmptyState, Eyebrow } from '@/components/admin/shared'
 import { useConfirm } from '@/components/ConfirmDialog'
+import { AI_CREDITS_EVENT } from '@/components/admin/AiDescriptionButton'
 
 type Row = MediaRow & { products?: { title: string } | null }
+
+interface PhotoPreset {
+  id: string
+  label: string
+  description: string
+}
 
 const kb = (bytes: number) => `${Math.max(1, Math.round(bytes / 1024))} KB`
 
@@ -19,6 +26,12 @@ export default function MediaView() {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<'ALL' | 'IMAGE' | 'YOUTUBE'>('ALL')
   const [busyId, setBusyId] = useState<string | null>(null)
+
+  // AI photo clean-up — hidden entirely when the add-on isn't connected.
+  const [cleanConfigured, setCleanConfigured] = useState(false)
+  const [presets, setPresets] = useState<PhotoPreset[]>([])
+  const [creditsPerPhoto, setCreditsPerPhoto] = useState(5)
+  const [cleaningId, setCleaningId] = useState<string | null>(null)
 
   // Orphan scan is deliberately on demand: it lists every folder in the bucket
   // and cannot be cheap, so it should not run on every visit to this page.
@@ -53,6 +66,69 @@ export default function MediaView() {
       setError(e instanceof Error ? e.message : 'Could not delete that asset.')
     } finally {
       setBusyId(null)
+    }
+  }
+
+  useEffect(() => {
+    let ignore = false
+    fetch('/api/admin/ai/photo')
+      .then((r) => r.json())
+      .then((d: { configured?: boolean; presets?: PhotoPreset[]; creditsPerPhoto?: number }) => {
+        if (ignore) return
+        setCleanConfigured(Boolean(d.configured))
+        if (d.presets) setPresets(d.presets)
+        if (typeof d.creditsPerPhoto === 'number') setCreditsPerPhoto(d.creditsPerPhoto)
+      })
+      .catch(() => {
+        if (!ignore) setCleanConfigured(false)
+      })
+    return () => {
+      ignore = true
+    }
+  }, [])
+
+  // Held per clean-up attempt so a dropped reply is not charged twice.
+  const cleanIdempotencyKey = useRef<string | null>(null)
+
+  const cleanUpPhoto = async (m: Row) => {
+    const preset = presets[0]
+    if (!preset) return
+
+    const ok = await confirm({
+      title: 'Clean up this photo?',
+      message: `The current image will be replaced with the cleaned-up version. This uses ${creditsPerPhoto} credit${creditsPerPhoto === 1 ? '' : 's'}.`,
+      confirmLabel: 'Clean up',
+    })
+    if (!ok) return
+
+    setCleaningId(m.id)
+    setError(null)
+    cleanIdempotencyKey.current ??= crypto.randomUUID()
+
+    try {
+      const res = await fetch('/api/admin/ai/photo', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          imageId: m.id,
+          presetId: preset.id,
+          idempotencyKey: cleanIdempotencyKey.current,
+        }),
+      })
+      const data = (await res.json()) as { creditsRemaining?: number; error?: string }
+
+      if (!res.ok) {
+        setError(data.error ?? 'Could not clean up that photo.')
+        return
+      }
+
+      cleanIdempotencyKey.current = null
+      window.dispatchEvent(new CustomEvent(AI_CREDITS_EVENT, { detail: { credits: data.creditsRemaining } }))
+      load()
+    } catch {
+      setError('Could not reach the server.')
+    } finally {
+      setCleaningId(null)
     }
   }
 
@@ -175,9 +251,21 @@ export default function MediaView() {
               <p className="text-[11px] truncate flex-1" style={{ color: 'var(--adm-text-2)' }}>
                 {m.products?.title || m.type}
               </p>
+              {cleanConfigured && m.type === 'IMAGE' && (
+                <button
+                  onClick={() => cleanUpPhoto(m)}
+                  disabled={cleaningId === m.id || busyId === m.id}
+                  aria-label={`Clean up photo from ${m.products?.title ?? 'product'} with AI`}
+                  title={`Clean up with AI — ${creditsPerPhoto} credit${creditsPerPhoto === 1 ? '' : 's'}`}
+                  className="adm-icon-btn shrink-0"
+                  style={{ width: 22, height: 22, color: 'var(--adm-accent)' }}
+                >
+                  {cleaningId === m.id ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
+                </button>
+              )}
               <button
                 onClick={() => remove(m)}
-                disabled={busyId === m.id}
+                disabled={busyId === m.id || cleaningId === m.id}
                 aria-label={`Delete asset from ${m.products?.title ?? 'product'}`}
                 className="adm-icon-btn shrink-0"
                 style={{ width: 22, height: 22, color: 'var(--adm-bad)' }}

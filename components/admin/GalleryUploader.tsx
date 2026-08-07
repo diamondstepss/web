@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Upload, X, Loader2, Star, Play, ArrowLeft, ArrowRight } from 'lucide-react'
+import { Upload, X, Loader2, Star, Play, ArrowLeft, ArrowRight, Sparkles } from 'lucide-react'
 import {
   fetchGallery,
   uploadImage,
@@ -13,6 +13,13 @@ import {
   type GalleryImage,
 } from '@/lib/media'
 import { useConfirm } from '@/components/ConfirmDialog'
+import { AI_CREDITS_EVENT } from './AiDescriptionButton'
+
+interface PhotoPreset {
+  id: string
+  label: string
+  description: string
+}
 
 /**
  * Up to five images per product, plus optional YouTube slides.
@@ -34,6 +41,18 @@ export default function GalleryUploader({ productId }: { productId: string }) {
   const input = useRef<HTMLInputElement>(null)
   const confirm = useConfirm()
 
+  // AI photo clean-up — hidden entirely when the add-on isn't connected.
+  const [cleanConfigured, setCleanConfigured] = useState(false)
+  const [presets, setPresets] = useState<PhotoPreset[]>([])
+  const [creditsPerPhoto, setCreditsPerPhoto] = useState(5)
+  const [showClean, setShowClean] = useState(false)
+  const [cleanTargetId, setCleanTargetId] = useState('')
+  const [cleanPreset, setCleanPreset] = useState('')
+  const [cleanBusy, setCleanBusy] = useState(false)
+  const [cleanNote, setCleanNote] = useState<{ text: string; tone: 'ok' | 'bad' } | null>(null)
+  // Held across retries so a dropped reply is not charged twice.
+  const cleanIdempotencyKey = useRef<string | null>(null)
+
   const load = useCallback(async () => {
     try {
       setImages(await fetchGallery(productId))
@@ -45,11 +64,103 @@ export default function GalleryUploader({ productId }: { productId: string }) {
   }, [productId])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    let ignore = false
+    fetchGallery(productId)
+      .then((data) => {
+        if (!ignore) setImages(data)
+      })
+      .catch((e) => {
+        if (!ignore) setError(e instanceof Error ? e.message : 'Could not load images.')
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false)
+      })
+    return () => {
+      ignore = true
+    }
+  }, [productId])
+
+  useEffect(() => {
+    let alive = true
+    fetch('/api/admin/ai/photo')
+      .then((r) => r.json())
+      .then((d: { configured?: boolean; presets?: PhotoPreset[]; creditsPerPhoto?: number }) => {
+        if (!alive) return
+        setCleanConfigured(Boolean(d.configured))
+        if (d.presets) setPresets(d.presets)
+        if (d.presets?.[0]) setCleanPreset((p) => p || d.presets![0].id)
+        if (typeof d.creditsPerPhoto === 'number') setCreditsPerPhoto(d.creditsPerPhoto)
+      })
+      .catch(() => alive && setCleanConfigured(false))
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const photos = images.filter((i) => i.type === 'IMAGE')
   const remaining = MAX_IMAGES - photos.length
+
+  // Derived rather than synced: defaulting to the main image needs no effect
+  // when it can just fall back at read time.
+  const effectiveCleanTarget = cleanTargetId || photos[0]?.id || ''
+
+  const runCleanup = async () => {
+    if (!effectiveCleanTarget || !cleanPreset) return
+
+    const ok = await confirm({
+      title: 'Clean up this photo?',
+      message: `The current image will be replaced with the cleaned-up version. This uses ${creditsPerPhoto} credit${creditsPerPhoto === 1 ? '' : 's'}.`,
+      confirmLabel: 'Clean up',
+      destructive: false,
+    })
+    if (!ok) return
+
+    setCleanBusy(true)
+    setCleanNote(null)
+    cleanIdempotencyKey.current ??= crypto.randomUUID()
+
+    try {
+      const res = await fetch('/api/admin/ai/photo', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          imageId: effectiveCleanTarget,
+          presetId: cleanPreset,
+          idempotencyKey: cleanIdempotencyKey.current,
+        }),
+      })
+      const data = (await res.json()) as {
+        url?: string
+        creditsCharged?: number
+        creditsRemaining?: number
+        temporaryUrl?: string
+        error?: string
+      }
+
+      if (!res.ok) {
+        if (res.status === 402) window.dispatchEvent(new CustomEvent(AI_CREDITS_EVENT))
+        setCleanNote({
+          text: data.temporaryUrl
+            ? `${data.error ?? 'Could not save it.'} Grab it quickly: ${data.temporaryUrl}`
+            : data.error ?? 'That did not work.',
+          tone: 'bad',
+        })
+        return
+      }
+
+      await load()
+      window.dispatchEvent(new CustomEvent(AI_CREDITS_EVENT, { detail: { credits: data.creditsRemaining } }))
+      cleanIdempotencyKey.current = null
+      setCleanNote({
+        text: `${data.creditsCharged ?? creditsPerPhoto} credits used · ${data.creditsRemaining ?? 0} left.`,
+        tone: 'ok',
+      })
+    } catch {
+      setCleanNote({ text: 'Could not reach the server.', tone: 'bad' })
+    } finally {
+      setCleanBusy(false)
+    }
+  }
 
   const handleFiles = async (files: FileList | null) => {
     if (!files?.length) return
@@ -317,6 +428,89 @@ export default function GalleryUploader({ productId }: { productId: string }) {
           </button>
         </div>
       </div>
+
+      {/* AI photo clean-up — the section itself doesn't render for a shop that
+          hasn't connected the add-on, same as the credits chip in the header. */}
+      {cleanConfigured && photos.length > 0 && (
+        <div className="pt-3 mt-1" style={{ borderTop: '1px solid var(--adm-line)' }}>
+          <button
+            type="button"
+            onClick={() => setShowClean((v) => !v)}
+            className="text-[10.5px] font-bold uppercase tracking-wider transition-opacity hover:opacity-75"
+            style={{ color: 'var(--adm-accent)', fontFamily: 'var(--font-outfit), Outfit' }}
+          >
+            {showClean ? '− Hide photo clean-up' : '+ Clean up a photo with AI'}
+          </button>
+
+          {showClean && (
+            <div className="mt-2.5 space-y-2">
+              <p className="text-[10.5px] leading-snug" style={{ color: 'var(--adm-text-3)' }}>
+                A plain backdrop and even lighting, from the photo you already have. It edits your
+                photo — it never invents a product.
+              </p>
+
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="block mb-1 text-[10.5px]" style={{ color: 'var(--adm-text-3)' }}>
+                    Photo
+                  </span>
+                  <select
+                    value={effectiveCleanTarget}
+                    onChange={(e) => setCleanTargetId(e.target.value)}
+                    className="adm-input"
+                    style={{ height: 32 }}
+                  >
+                    {photos.map((img, i) => (
+                      <option key={img.id} value={img.id}>
+                        {i === 0 ? 'Main image' : `Image ${i + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="block mb-1 text-[10.5px]" style={{ color: 'var(--adm-text-3)' }}>
+                    Preset
+                  </span>
+                  <select
+                    value={cleanPreset}
+                    onChange={(e) => setCleanPreset(e.target.value)}
+                    className="adm-input"
+                    style={{ height: 32 }}
+                  >
+                    {presets.map((p) => (
+                      <option key={p.id} value={p.id} title={p.description}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <button
+                type="button"
+                onClick={runCleanup}
+                disabled={cleanBusy || !effectiveCleanTarget || !cleanPreset}
+                className="adm-btn adm-btn-primary w-full"
+                style={{ height: 32 }}
+              >
+                {cleanBusy ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                {cleanBusy
+                  ? 'Cleaning up… about a minute'
+                  : `Clean up — ${creditsPerPhoto} credit${creditsPerPhoto === 1 ? '' : 's'}`}
+              </button>
+            </div>
+          )}
+
+          {cleanNote && (
+            <p
+              className="text-[10.5px] mt-1.5 leading-snug"
+              style={{ color: cleanNote.tone === 'ok' ? 'var(--adm-ok)' : 'var(--adm-bad)' }}
+            >
+              {cleanNote.text}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -76,6 +76,40 @@ export async function uploadImage(
   return data as GalleryImage
 }
 
+const SITE_BUCKET = 'site-images'
+
+/**
+ * Uploads a cover image that isn't a product photo — category and collection
+ * tiles, mainly. These have no `product_media` row to track them, so they go
+ * to `site-images` rather than `product-images`: the Media page's orphan scan
+ * treats anything in the product bucket without a row as junk, and a cover
+ * image has no such row. Sharing a bucket would mean that scan offering to
+ * delete every category tile on the site.
+ */
+export async function uploadSiteImage(file: File): Promise<string> {
+  if (!file.type.startsWith('image/')) {
+    throw new UploadError(`${file.name} is not an image.`)
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    throw new UploadError(`${file.name} is over 5 MB. Please compress it first.`)
+  }
+
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+  const path = `covers/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+
+  const { error } = await db().storage.from(SITE_BUCKET).upload(path, file, {
+    cacheControl: '31536000',
+    upsert: false,
+  })
+  if (error) throw new UploadError(error.message)
+
+  const {
+    data: { publicUrl },
+  } = db().storage.from(SITE_BUCKET).getPublicUrl(path)
+
+  return publicUrl
+}
+
 export async function deleteImage(image: GalleryImage): Promise<void> {
   const { error } = await db().from('product_media').delete().eq('id', image.id)
   if (error) throw error

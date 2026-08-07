@@ -1,20 +1,23 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Sparkles, Loader2 } from 'lucide-react'
+import { Sparkles, Loader2, Upload } from 'lucide-react'
+import { uploadSiteImage, UploadError } from '@/lib/media'
+import { ImageCropModal } from './ImageCropModal'
 
 /**
- * A URL box with an AI generator attached.
+ * A URL box with an AI generator and a file picker attached.
  *
  * Used wherever the admin asks for cover artwork — category tiles, collection
- * covers. Pasting a URL still works; this only adds the option of not having to
- * find one.
+ * covers. Pasting a URL still works; this only adds two ways not to have to
+ * find one already sitting on the web: generate one, or upload and crop a
+ * photo from your own computer.
  *
- * What it generates is a decorative backdrop, never a product. The service
- * refuses to draw footwear in banners for the same reason it will not invent a
- * product photo: a shop selling real branded stock cannot show a customer
- * something it does not have. So these are surfaces, light and colour, with
- * space left for a title to sit over them.
+ * What the AI side generates is a decorative backdrop, never a product. The
+ * service refuses to draw footwear in banners for the same reason it will not
+ * invent a product photo: a shop selling real branded stock cannot show a
+ * customer something it does not have. So these are surfaces, light and
+ * colour, with space left for a title to sit over them.
  */
 
 interface Occasion {
@@ -47,6 +50,11 @@ export function ImageField({
 
   // Held across retries so a dropped reply is not charged twice.
   const idempotencyKey = useRef<string | null>(null)
+
+  // Upload-and-crop, entirely separate from the AI generator above.
+  const fileInput = useRef<HTMLInputElement>(null)
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -106,6 +114,29 @@ export function ImageField({
     }
   }
 
+  const onFilePicked = (file: File | undefined) => {
+    if (!file) return
+    setNote(null)
+    setPendingFile(file)
+    if (fileInput.current) fileInput.current.value = ''
+  }
+
+  const onCropped = async (blob: Blob) => {
+    setPendingFile(null)
+    setUploading(true)
+    setNote(null)
+    try {
+      const cropped = new File([blob], 'cover.jpg', { type: 'image/jpeg' })
+      const url = await uploadSiteImage(cropped)
+      onChange(url)
+      setNote({ text: 'Uploaded.', tone: 'ok' })
+    } catch (e) {
+      setNote({ text: e instanceof UploadError ? e.message : 'Upload failed.', tone: 'bad' })
+    } finally {
+      setUploading(false)
+    }
+  }
+
   return (
     <div>
       <div className="flex gap-2">
@@ -114,6 +145,22 @@ export function ImageField({
           onChange={(e) => onChange(e.target.value)}
           placeholder="https://…"
           className="adm-input flex-1"
+        />
+        <button
+          type="button"
+          onClick={() => fileInput.current?.click()}
+          disabled={uploading}
+          className="adm-btn adm-btn-ghost shrink-0"
+          title="Upload a photo from your computer"
+        >
+          {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+        </button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/avif"
+          hidden
+          onChange={(e) => onFilePicked(e.target.files?.[0])}
         />
         {configured && (
           <button
@@ -126,6 +173,14 @@ export function ImageField({
           </button>
         )}
       </div>
+
+      {pendingFile && (
+        <ImageCropModal
+          file={pendingFile}
+          onCancel={() => setPendingFile(null)}
+          onCropped={onCropped}
+        />
+      )}
 
       {/* Preview. A broken URL is otherwise only discovered on the storefront. */}
       {value && (

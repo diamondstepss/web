@@ -77,5 +77,52 @@ async function handle(req: NextRequest, { path }: { path: string[] }) {
     return NextResponse.json(result)
   }
 
+  if (route === 'v1/enhance/photo') {
+    if (req.method === 'GET') {
+      return NextResponse.json({
+        configured: true,
+        creditsPerPhoto: 5,
+        presets: [
+          {
+            id: 'clean-white',
+            label: 'Clean white background',
+            description: 'Stub preset — hands the same photo back unchanged.',
+          },
+        ],
+      })
+    }
+
+    const key = req.headers.get('idempotency-key')
+    if (key && seen.has(key)) return NextResponse.json(seen.get(key))
+
+    if (credits < 5) {
+      return NextResponse.json(
+        { error: 'You have run out of credits.', creditsRemaining: credits },
+        { status: 402 },
+      )
+    }
+
+    const body = (await req.json()) as { imageUrl?: string; presetId?: string }
+    if (!body.imageUrl) {
+      return NextResponse.json({ error: 'imageUrl must be a public https URL.' }, { status: 422 })
+    }
+
+    await new Promise((r) => setTimeout(r, 1200))
+
+    credits -= 5
+    const result = {
+      // The stub does not actually enhance anything — it hands the same photo
+      // back so the caller's download-and-store step can still be exercised
+      // locally, same reasoning as the placeholder description text above.
+      url: body.imageUrl,
+      framed: true,
+      expiresInSeconds: 3600,
+      creditsCharged: 5,
+      creditsRemaining: credits,
+    }
+    if (key) seen.set(key, result)
+    return NextResponse.json(result)
+  }
+
   return NextResponse.json({ error: `stub has no route ${route}` }, { status: 404 })
 }

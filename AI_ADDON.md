@@ -118,20 +118,34 @@ would eventually get some saved to a live product.
 | [`app/api/admin/ai/balance/route.ts`](app/api/admin/ai/balance/route.ts) | Balance for the header chip |
 | [`components/admin/AiDescriptionButton.tsx`](components/admin/AiDescriptionButton.tsx) | "Write with AI" in the product form |
 | [`components/admin/AiCreditsChip.tsx`](components/admin/AiCreditsChip.tsx) | Remaining credits in the admin header |
+| [`app/api/admin/ai/photo/route.ts`](app/api/admin/ai/photo/route.ts) | Proxy for photo clean-up. Reads the image's current URL from `product_media` rather than trusting the browser, same reasoning as the description proxy |
+| [`components/admin/GalleryUploader.tsx`](components/admin/GalleryUploader.tsx) | "Clean up a photo with AI" in the product gallery — replaces the chosen image's row in place |
+| [`components/admin/views/MediaView.tsx`](components/admin/views/MediaView.tsx) | The same clean-up action, reachable from the site-wide media grid instead of one product at a time |
+| [`components/admin/ImageField.tsx`](components/admin/ImageField.tsx) | Cover-image picker (category and collection tiles) — paste a URL, generate one, or upload and crop a photo from your computer |
+| [`components/admin/ImageCropModal.tsx`](components/admin/ImageCropModal.tsx) | The crop step behind the upload option above. Nothing uploads until the crop is confirmed |
 
 The proxy sends only a product id from the browser and reads brand, prices,
 sizes and photos server-side. Otherwise the admin could describe anything it
 liked, and a spent credit would buy copy for a product that does not exist.
 
-## Not built: photo generation
+## Photo enhancement, not generation
 
 Diamond Stepss sells real Nike, Adidas and Puma stock. A *generated* product
 photo shows a shoe the customer will not receive — colourway, logo placement and
 sole detail all drift — which is a returns problem before it is a legal one, and
-India's e-commerce rules require accurate depiction.
+India's e-commerce rules require accurate depiction. Nothing here generates a
+product photo, and `/v1/enhance/photo` does not accept one — see the service's
+own docs.
 
 Photo *enhancement* carries none of that: background removal onto a clean
-backdrop, a consistent square crop, one output size. That is also what actually
-makes a catalogue look expensive — fifteen photos that match, rather than one
-pretty one. It is a candidate for a `/v1/enhance/photo` endpoint on the same
-service, priced in the same credits.
+backdrop, a consistent square crop, one output size, run against a photo this
+shop actually took. That is also what actually makes a catalogue look
+expensive — fifteen photos that match, rather than one pretty one. It costs
+five credits rather than one, because an image edit costs the service roughly
+five times what a description does — see the service's own pricing rather than
+this doc, which is not the authority on it.
+
+The old photo in storage is not deleted when a clean-up replaces it — the
+Media page's orphan-file scan already exists to catch that, and the proxy
+route would rather risk a harmless orphaned file than a failed delete after
+the credit is already spent.
