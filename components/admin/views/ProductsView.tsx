@@ -1,15 +1,18 @@
 'use client'
 
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import { Plus, Star, Search, PackageOpen, ImageOff , MoveHorizontal, X } from 'lucide-react'
 import type { DbProduct } from '@/lib/catalog'
 import {
   adminFetchProducts,
   adminFetchCategories,
+  adminFetchBrands,
+  adminFetchProductStats,
   deleteProduct,
   toggleFeatured,
   toggleActive,
+  type ProductSort,
 } from '@/lib/catalog-admin'
 import { useConfirm } from '@/components/ConfirmDialog'
 import {
@@ -17,6 +20,7 @@ import {
   shortDate,
   fullDateTime,
   ToggleSwitch,
+  Pagination,
   Panel,
   PageHeading,
   ErrorNote,
@@ -27,46 +31,106 @@ import {
 type StatusFilter = 'ALL' | 'LIVE' | 'DRAFT'
 type FeaturedFilter = 'ALL' | 'YES' | 'NO'
 type StockFilter = 'ALL' | 'IN' | 'LOW' | 'OUT'
-type SortKey = 'position' | 'newest' | 'oldest' | 'updated' | 'price_desc' | 'price_asc' | 'stock_asc' | 'name'
 
 export default function ProductsView() {
   const [rows, setRows] = useState<DbProduct[]>([])
+  const [total, setTotal] = useState(0)
+  const [stats, setStats] = useState<{ total: number; live: number; outOfStock: number } | null>(null)
+  const [brands, setBrands] = useState<string[]>([])
   const [categoryNames, setCategoryNames] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
-  const [q, setQ] = useState('')
 
+  const [q, setQ] = useState('')
+  const [debouncedQ, setDebouncedQ] = useState('')
   const [brandFilter, setBrandFilter] = useState('ALL')
   const [categoryFilter, setCategoryFilter] = useState('ALL')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
   const [featuredFilter, setFeaturedFilter] = useState<FeaturedFilter>('ALL')
   const [stockFilter, setStockFilter] = useState<StockFilter>('ALL')
-  const [sort, setSort] = useState<SortKey>('position')
+  const [sort, setSort] = useState<ProductSort>('position')
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(10)
 
   const confirm = useConfirm()
+
+  // Typing shouldn't fire a query per keystroke — everything else (a
+  // dropdown, a status pill) already only changes on a deliberate click.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q.trim()), 300)
+    return () => clearTimeout(t)
+  }, [q])
+
+  // Any filter change invalidates whatever page you were on — page 4 of a
+  // narrower result set may not exist. Adjusted during render rather than in
+  // an effect — react.dev's own pattern for "reset state when an input
+  // changes," comparing against the last-seen signature instead of reacting
+  // to it after the fact.
+  const filterSignature = JSON.stringify([
+    debouncedQ, brandFilter, categoryFilter, statusFilter, featuredFilter, stockFilter, sort, perPage,
+  ])
+  const [prevFilterSignature, setPrevFilterSignature] = useState(filterSignature)
+  if (filterSignature !== prevFilterSignature) {
+    setPrevFilterSignature(filterSignature)
+    setPage(1)
+  }
+
+  // Brands, categories and the whole-catalog counts describe the catalog,
+  // not the current page — fetched once, independent of paging/filtering.
+  useEffect(() => {
+    Promise.all([adminFetchBrands(), adminFetchCategories(), adminFetchProductStats()])
+      .then(([b, categories, s]) => {
+        setBrands(b)
+        setCategoryNames(Object.fromEntries(categories.map((c) => [c.slug, c.name])))
+        setStats(s)
+      })
+      .catch(() => {
+        /* filter options and the stats banner are non-essential — the table itself still loads */
+      })
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const [products, categories] = await Promise.all([adminFetchProducts(), adminFetchCategories()])
-      setRows(products)
-      setCategoryNames(Object.fromEntries(categories.map((c) => [c.slug, c.name])))
+      const { rows, total } = await adminFetchProducts({
+        search: debouncedQ || undefined,
+        brand: brandFilter === 'ALL' ? undefined : brandFilter,
+        categorySlug: categoryFilter === 'ALL' ? undefined : categoryFilter,
+        status: statusFilter === 'ALL' ? undefined : statusFilter,
+        featured: featuredFilter === 'ALL' ? undefined : featuredFilter === 'YES',
+        stock: stockFilter === 'ALL' ? undefined : stockFilter,
+        sort,
+        page,
+        perPage,
+      })
+      setRows(rows)
+      setTotal(total)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load products.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [debouncedQ, brandFilter, categoryFilter, statusFilter, featuredFilter, stockFilter, sort, page, perPage])
 
   useEffect(() => {
     void load()
   }, [load])
 
+  // A delete can empty the last page — land somewhere that still has rows
+  // rather than showing "no results" for a page that no longer exists. Same
+  // during-render adjustment as the filter reset above, keyed on totalPages
+  // rather than on total/perPage individually so it only fires when the
+  // page count actually changes, not on every row-count fluctuation.
+  const totalPages = Math.max(1, Math.ceil(total / perPage))
+  const [prevTotalPages, setPrevTotalPages] = useState(totalPages)
+  if (totalPages !== prevTotalPages) {
+    setPrevTotalPages(totalPages)
+    if (page > totalPages) setPage(totalPages)
+  }
+
   const pct = (mrp: number, price: number) => (mrp > price ? Math.round(((mrp - price) / mrp) * 100) : 0)
-  const categoriesOf = (p: DbProduct) =>
-    (p.product_categories ?? []).map((pc) => pc.categories?.slug).filter((s): s is string => Boolean(s))
 
   const act = async (id: string, fn: () => Promise<unknown>) => {
     setBusy(id)
@@ -80,11 +144,7 @@ export default function ProductsView() {
     }
   }
 
-  const brands = useMemo(() => [...new Set(rows.map((p) => p.brand))].sort(), [rows])
-  const categoryOptions = useMemo(() => {
-    const slugs = new Set(rows.flatMap(categoriesOf))
-    return [...slugs].sort((a, b) => (categoryNames[a] ?? a).localeCompare(categoryNames[b] ?? b))
-  }, [rows, categoryNames])
+  const categoryOptions = Object.keys(categoryNames).sort((a, b) => categoryNames[a].localeCompare(categoryNames[b]))
 
   const filtersActive =
     brandFilter !== 'ALL' ||
@@ -101,49 +161,12 @@ export default function ProductsView() {
     setStockFilter('ALL')
   }
 
-  const needle = q.trim().toLowerCase()
-  const shown = rows
-    .filter((p) => !needle || [p.title, p.brand, p.slug].some((v) => v?.toLowerCase().includes(needle)))
-    .filter((p) => brandFilter === 'ALL' || p.brand === brandFilter)
-    .filter((p) => categoryFilter === 'ALL' || categoriesOf(p).includes(categoryFilter))
-    .filter((p) => statusFilter === 'ALL' || (statusFilter === 'LIVE' ? p.is_active : !p.is_active))
-    .filter((p) => featuredFilter === 'ALL' || (featuredFilter === 'YES' ? p.is_featured : !p.is_featured))
-    .filter((p) => {
-      if (stockFilter === 'ALL') return true
-      if (stockFilter === 'OUT') return p.stock === 0
-      if (stockFilter === 'LOW') return p.stock > 0 && p.stock < 5
-      return p.stock >= 5 // IN
-    })
-    .sort((a, b) => {
-      switch (sort) {
-        case 'newest':
-          return b.created_at.localeCompare(a.created_at)
-        case 'oldest':
-          return a.created_at.localeCompare(b.created_at)
-        case 'updated':
-          return b.updated_at.localeCompare(a.updated_at)
-        case 'price_desc':
-          return Number(b.price) - Number(a.price)
-        case 'price_asc':
-          return Number(a.price) - Number(b.price)
-        case 'stock_asc':
-          return a.stock - b.stock
-        case 'name':
-          return a.title.localeCompare(b.title)
-        default:
-          return a.position - b.position
-      }
-    })
-
-  const live = rows.filter((p) => p.is_active).length
-  const outOfStock = rows.filter((p) => p.stock === 0).length
-
   return (
     <div>
       <PageHeading
         title="Products"
         description="Everything in the catalog. Toggle a product live or draft, or star it to feature it on the homepage."
-        meta={loading ? 'Loading…' : `${live} live · ${rows.length} total`}
+        meta={stats ? `${stats.live} live · ${stats.total} total` : undefined}
       >
         <div className="relative">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--adm-text-3)' }} />
@@ -163,7 +186,7 @@ export default function ProductsView() {
 
       <ErrorNote>{error}</ErrorNote>
 
-      {outOfStock > 0 && !loading && (
+      {stats && stats.outOfStock > 0 && (
         <p
           className="text-[12px] px-4 py-2.5 mb-3.5 adm-rise adm-rise-1"
           style={{
@@ -173,13 +196,13 @@ export default function ProductsView() {
             borderRadius: 'var(--adm-r-sm)',
           }}
         >
-          {outOfStock === 1
+          {stats.outOfStock === 1
             ? '1 product is out of stock — customers can still see it but can’t buy.'
-            : `${outOfStock} products are out of stock — customers can still see them but can’t buy.`}
+            : `${stats.outOfStock} products are out of stock — customers can still see them but can’t buy.`}
         </p>
       )}
 
-      {!loading && rows.length > 0 && (
+      {stats && stats.total > 0 && (
         <div className="flex flex-wrap items-center gap-2 mb-3.5 adm-rise adm-rise-1">
           <select value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)} className="adm-input" style={{ height: 32, width: 'auto' }}>
             <option value="ALL">All brands</option>
@@ -234,7 +257,7 @@ export default function ProductsView() {
             <option value="OUT">Out of stock</option>
           </select>
 
-          <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className="adm-input" style={{ height: 32, width: 'auto' }}>
+          <select value={sort} onChange={(e) => setSort(e.target.value as ProductSort)} className="adm-input" style={{ height: 32, width: 'auto' }}>
             <option value="position">Sort: manual order</option>
             <option value="newest">Sort: newest first</option>
             <option value="oldest">Sort: oldest first</option>
@@ -254,19 +277,19 @@ export default function ProductsView() {
       )}
 
       <Panel className="overflow-hidden adm-rise adm-rise-2">
-        {!loading && shown.length === 0 ? (
+        {!loading && total === 0 ? (
           <EmptyState
             icon={PackageOpen}
-            title={rows.length === 0 ? 'No products yet' : 'Nothing matches'}
+            title={stats?.total === 0 ? 'No products yet' : 'Nothing matches'}
             message={
-              rows.length === 0
+              stats?.total === 0
                 ? 'Add your first product and it appears on the storefront straight away.'
                 : q.trim()
                   ? `No product matches "${q.trim()}".`
                   : 'No product matches these filters.'
             }
             action={
-              rows.length === 0 ? (
+              stats?.total === 0 ? (
                 <Link href="/admin/products/new" className="adm-btn adm-btn-primary">
                   <Plus size={13} /> New product
                 </Link>
@@ -298,7 +321,7 @@ export default function ProductsView() {
               </thead>
               <tbody>
                 {loading && <SkeletonRows cols={10} rows={6} />}
-                {shown.map((p) => (
+                {!loading && rows.map((p) => (
                   <tr key={p.id} style={{ opacity: p.is_active ? 1 : 0.55 }}>
                     <td>
                       <div
@@ -408,6 +431,7 @@ export default function ProductsView() {
               </tbody>
             </table>
           </div>
+          <Pagination page={page} perPage={perPage} total={total} onPageChange={setPage} onPerPageChange={setPerPage} />
           </>
         )}
       </Panel>

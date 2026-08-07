@@ -41,16 +41,112 @@ export type ProductInput = {
   is_active?: boolean
 }
 
-/** Admin view includes inactive products, which the storefront never sees.
- *  Category slugs are embedded so the products list can filter by category
- *  without a second round trip per row. */
-export async function adminFetchProducts(): Promise<DbProduct[]> {
-  const { data, error } = await db()
+export type ProductSort =
+  | 'position'
+  | 'newest'
+  | 'oldest'
+  | 'updated'
+  | 'price_desc'
+  | 'price_asc'
+  | 'stock_asc'
+  | 'name'
+
+/** column, ascending — one place mapping a sort key to what the database is
+ *  actually told, so the dropdown and the query can never disagree. */
+const SORT_MAP: Record<ProductSort, [string, boolean]> = {
+  position: ['position', true],
+  newest: ['created_at', false],
+  oldest: ['created_at', true],
+  updated: ['updated_at', false],
+  price_desc: ['price', false],
+  price_asc: ['price', true],
+  stock_asc: ['stock', true],
+  name: ['title', true],
+}
+
+export interface ProductListFilters {
+  search?: string
+  brand?: string
+  categorySlug?: string
+  status?: 'LIVE' | 'DRAFT'
+  featured?: boolean
+  stock?: 'IN' | 'LOW' | 'OUT'
+  sort?: ProductSort
+  page: number // 1-based
+  perPage: number
+}
+
+export interface ProductListResult {
+  rows: DbProduct[]
+  total: number
+}
+
+/**
+ * Admin view includes inactive products, which the storefront never sees.
+ * Filtered, sorted and paged entirely in Postgres — the previous version
+ * fetched every product and did all of this in the browser, which was fine
+ * at fifteen products and would not stay fine.
+ *
+ * The category filter is the one filter that needs an inner join rather
+ * than a plain embed: `product_categories(categories(slug))` returns every
+ * product with its categories attached, but says nothing about which
+ * *products* to exclude. `!inner` turns the embed into a real join, so
+ * `.eq('product_categories.categories.slug', x)` actually drops rows.
+ */
+export async function adminFetchProducts(filters: ProductListFilters): Promise<ProductListResult> {
+  const { search, brand, categorySlug, status, featured, stock, sort = 'position', page, perPage } = filters
+
+  let query = db()
     .from('products')
-    .select('*,product_categories(categories(slug))')
-    .order('position', { ascending: true })
+    .select(
+      categorySlug ? '*,product_categories!inner(categories!inner(slug))' : '*,product_categories(categories(slug))',
+      { count: 'exact' },
+    )
+
+  const needle = search?.trim().replace(/[%,]/g, '')
+  if (needle) query = query.or(`title.ilike.%${needle}%,brand.ilike.%${needle}%,slug.ilike.%${needle}%`)
+  if (brand) query = query.eq('brand', brand)
+  if (categorySlug) query = query.eq('product_categories.categories.slug', categorySlug)
+  if (status) query = query.eq('is_active', status === 'LIVE')
+  if (featured !== undefined) query = query.eq('is_featured', featured)
+  if (stock === 'OUT') query = query.eq('stock', 0)
+  else if (stock === 'LOW') query = query.gt('stock', 0).lt('stock', 5)
+  else if (stock === 'IN') query = query.gte('stock', 5)
+
+  const [column, ascending] = SORT_MAP[sort]
+  query = query.order(column, { ascending })
+
+  const from = (Math.max(1, page) - 1) * perPage
+  query = query.range(from, from + perPage - 1)
+
+  const { data, error, count } = await query
   if (error) throw error
-  return (data ?? []) as DbProduct[]
+  return { rows: (data ?? []) as DbProduct[], total: count ?? 0 }
+}
+
+/** Every brand in use, for the filter dropdown — independent of whatever
+ *  page or filters are currently applied. One narrow column, cheap even
+ *  across a large catalog. */
+export async function adminFetchBrands(): Promise<string[]> {
+  const { data, error } = await db().from('products').select('brand')
+  if (error) throw error
+  return [...new Set((data ?? []).map((r) => r.brand as string))].sort()
+}
+
+/** Whole-catalog counts for the page header and the out-of-stock banner —
+ *  these describe the catalog, not the current filtered page, so they're
+ *  fetched separately rather than derived from whatever rows happen to be
+ *  on screen. `head: true` means Postgres counts without sending the rows. */
+export async function adminFetchProductStats(): Promise<{ total: number; live: number; outOfStock: number }> {
+  const [totalRes, liveRes, outRes] = await Promise.all([
+    db().from('products').select('id', { count: 'exact', head: true }),
+    db().from('products').select('id', { count: 'exact', head: true }).eq('is_active', true),
+    db().from('products').select('id', { count: 'exact', head: true }).eq('stock', 0),
+  ])
+  if (totalRes.error) throw totalRes.error
+  if (liveRes.error) throw liveRes.error
+  if (outRes.error) throw outRes.error
+  return { total: totalRes.count ?? 0, live: liveRes.count ?? 0, outOfStock: outRes.count ?? 0 }
 }
 
 /** One product by id — the edit route loads straight from the URL. */

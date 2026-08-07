@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { fetchAllOrders, type AdminOrder } from '@/lib/admin'
 
 /**
@@ -277,4 +278,141 @@ export function useAdminOrders() {
   }, [load])
 
   return { orders, loading, error, reload: load }
+}
+
+/** Page numbers to render, with `'…'` standing in for a run that's skipped.
+ *  Always shows the first, the last, and a small window around the current
+ *  page, so the control stays a fixed, glanceable width regardless of
+ *  whether there are 4 pages or 400. */
+export function paginationRange(current: number, total: number): (number | '…')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+
+  const keep = new Set([1, 2, total - 1, total, current - 1, current, current + 1])
+  const pages = [...keep].filter((p) => p >= 1 && p <= total).sort((a, b) => a - b)
+
+  const out: (number | '…')[] = []
+  let prev = 0
+  for (const p of pages) {
+    if (p - prev > 1) out.push('…')
+    out.push(p)
+    prev = p
+  }
+  return out
+}
+
+const PER_PAGE_OPTIONS = [10, 20, 50, 100]
+
+/**
+ * Backend pagination footer: rows-per-page, a "showing X–Y of Z" readout,
+ * and page navigation. One component because every list that grows past a
+ * page needs the identical three pieces, and a change to how one looks
+ * should not require finding every table that copied it.
+ */
+export function Pagination({
+  page,
+  perPage,
+  total,
+  onPageChange,
+  onPerPageChange,
+}: {
+  page: number
+  perPage: number
+  total: number
+  onPageChange: (page: number) => void
+  onPerPageChange: (perPage: number) => void
+}) {
+  const totalPages = Math.max(1, Math.ceil(total / perPage))
+  const from = total === 0 ? 0 : (page - 1) * perPage + 1
+  const to = Math.min(page * perPage, total)
+
+  const btn = (active = false) =>
+    ({
+      height: 30,
+      minWidth: 30,
+      padding: '0 8px',
+      borderRadius: 'var(--adm-r-sm)',
+      border: `1px solid ${active ? 'var(--adm-accent-line)' : 'var(--adm-line)'}`,
+      background: active ? 'var(--adm-accent-soft)' : 'transparent',
+      color: active ? 'var(--adm-accent)' : 'var(--adm-text-2)',
+      fontWeight: active ? 700 : 500,
+    }) as const
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" style={{ borderTop: '1px solid var(--adm-line)' }}>
+      <div className="flex items-center gap-2 text-[11.5px]" style={{ color: 'var(--adm-text-3)' }}>
+        <span>Rows per page</span>
+        <select
+          value={perPage}
+          onChange={(e) => onPerPageChange(Number(e.target.value))}
+          className="adm-input"
+          style={{ height: 28, width: 'auto', padding: '0 8px' }}
+        >
+          {PER_PAGE_OPTIONS.map((n) => (
+            <option key={n} value={n}>{n}</option>
+          ))}
+        </select>
+        <span className="whitespace-nowrap">
+          {total === 0 ? 'No results' : `${from}–${to} of ${total}`}
+        </span>
+      </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={() => onPageChange(1)} disabled={page === 1} className="adm-icon-btn" style={btn()} aria-label="First page">
+            <ChevronsLeft size={13} />
+          </button>
+          <button
+            type="button"
+            onClick={() => onPageChange(page - 1)}
+            disabled={page === 1}
+            className="adm-icon-btn"
+            style={btn()}
+            aria-label="Previous page"
+          >
+            <ChevronLeft size={13} />
+          </button>
+
+          {paginationRange(page, totalPages).map((p, i) =>
+            p === '…' ? (
+              <span key={`e${i}`} className="px-1 text-[11.5px]" style={{ color: 'var(--adm-text-3)' }}>
+                …
+              </span>
+            ) : (
+              <button
+                key={p}
+                type="button"
+                onClick={() => onPageChange(p)}
+                aria-current={p === page ? 'page' : undefined}
+                className="text-[11.5px] transition-colors"
+                style={btn(p === page)}
+              >
+                {p}
+              </button>
+            ),
+          )}
+
+          <button
+            type="button"
+            onClick={() => onPageChange(page + 1)}
+            disabled={page === totalPages}
+            className="adm-icon-btn"
+            style={btn()}
+            aria-label="Next page"
+          >
+            <ChevronRight size={13} />
+          </button>
+          <button
+            type="button"
+            onClick={() => onPageChange(totalPages)}
+            disabled={page === totalPages}
+            className="adm-icon-btn"
+            style={btn()}
+            aria-label="Last page"
+          >
+            <ChevronsRight size={13} />
+          </button>
+        </div>
+      )}
+    </div>
+  )
 }
