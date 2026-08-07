@@ -23,6 +23,8 @@ export interface DbProduct {
   is_featured: boolean
   is_active: boolean
   position: number
+  created_at: string
+  updated_at: string
   /** Present only when the query embeds them — see PRODUCT_SELECT. */
   product_categories?: { categories: { slug: string } | null }[]
   /** Present only on the single-product query — see PRODUCT_DETAIL_SELECT. */

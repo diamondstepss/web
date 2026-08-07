@@ -41,9 +41,14 @@ export type ProductInput = {
   is_active?: boolean
 }
 
-/** Admin view includes inactive products, which the storefront never sees. */
+/** Admin view includes inactive products, which the storefront never sees.
+ *  Category slugs are embedded so the products list can filter by category
+ *  without a second round trip per row. */
 export async function adminFetchProducts(): Promise<DbProduct[]> {
-  const { data, error } = await db().from('products').select('*').order('position', { ascending: true })
+  const { data, error } = await db()
+    .from('products')
+    .select('*,product_categories(categories(slug))')
+    .order('position', { ascending: true })
   if (error) throw error
   return (data ?? []) as DbProduct[]
 }

@@ -13,6 +13,66 @@ import { fetchAllOrders, type AdminOrder } from '@/lib/admin'
 /** Indian digit grouping — ₹1,84,500, not ₹184,500. */
 export const inr = (n: number | string) => `₹${Number(n).toLocaleString('en-IN')}`
 
+/** Compact table cell: "7 Aug '26". Pair with fullDateTime() as a tooltip. */
+export const shortDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
+
+/** The exact moment, for a title="" tooltip on a shortDate() cell. */
+export const fullDateTime = (iso: string) =>
+  new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+
+/**
+ * An on/off switch, for the one-click toggles scattered through the admin
+ * (live/draft, featured, etc.) — a colour-coded pill reads as a status label
+ * first and a button second; this reads as a button first.
+ */
+export function ToggleSwitch({
+  checked,
+  onChange,
+  disabled,
+  label,
+}: {
+  checked: boolean
+  onChange: () => void
+  disabled?: boolean
+  label?: string
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={onChange}
+      disabled={disabled}
+      className="relative inline-flex shrink-0 transition-colors"
+      style={{
+        width: 34,
+        height: 19,
+        borderRadius: 99,
+        background: checked ? 'var(--adm-ok)' : 'var(--adm-line-strong)',
+        opacity: disabled ? 0.6 : 1,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+      }}
+    >
+      <span
+        aria-hidden
+        className="absolute transition-transform"
+        style={{
+          top: 2,
+          left: 2,
+          width: 15,
+          height: 15,
+          borderRadius: 99,
+          background: '#fff',
+          transform: checked ? 'translateX(15px)' : 'translateX(0)',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
+        }}
+      />
+    </button>
+  )
+}
+
 /** Compact form for chart axes and tight cells: ₹1.8L, ₹24.5k. */
 export const inrShort = (n: number) => {
   const v = Number(n)
