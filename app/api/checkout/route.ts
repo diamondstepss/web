@@ -101,9 +101,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Could not place the order.' }, { status: 500 })
     }
 
-    // Reserve stock now so two people can't buy the last pair.
+    // Reserve stock now so two people can't buy the last pair. A sized line
+    // decrements that size's own row; a sizeless one (an accessory) still
+    // decrements the product total directly — PostgREST picks the matching
+    // decrement_stock overload from which of these args are present.
     for (const l of priced.lines) {
-      await admin.rpc('decrement_stock', { p_slug: l.product_id, p_qty: l.qty })
+      if (l.size) {
+        await admin.rpc('decrement_stock', { p_slug: l.product_id, p_size: l.size, p_qty: l.qty })
+      } else {
+        await admin.rpc('decrement_stock', { p_slug: l.product_id, p_qty: l.qty })
+      }
     }
 
     if (priced.couponCode) {

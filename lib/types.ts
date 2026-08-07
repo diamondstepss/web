@@ -11,6 +11,10 @@ export interface Product {
   isNew?: boolean
   /** Units on hand. Drives the "in stock only" filter. */
   stock?: number
+  /** Units on hand per size — present only on the single-product page, which
+   *  is the only place that needs to know which specific sizes are sold out
+   *  rather than just whether the product as a whole is. */
+  sizeStock?: Record<number, number>
   /** Category slugs this product belongs to, for category filtering. */
   categories?: string[]
 }

@@ -71,7 +71,26 @@ export function ProductPage({
   // size 11 always marked sold out, on every product in the catalog.
   const sizes: number[] = incoming?.sizes?.length ? incoming.sizes : []
   const outOfStock = typeof incoming?.stock === 'number' && incoming.stock <= 0
+
+  // Per-size availability, when it's known. A product fetched before the
+  // size-stock migration ran (or an accessory, which has none) has no
+  // `sizeStock` at all — falls back to the product-wide flag rather than
+  // treating "we don't know" as "sold out everywhere."
+  const sizeStockOf = (s: number) => incoming?.sizeStock?.[s]
+  const sizeSoldOut = (s: number) => {
+    const n = sizeStockOf(s)
+    return n !== undefined ? n <= 0 : outOfStock
+  }
+
   const [qty, setQty] = useState(1)
+  // Caps the stepper once there's an actual number to cap it to. Left
+  // uncapped when unknown, same as before this feature existed — checkout
+  // still refuses an order for more than is really on hand either way.
+  const knownStock = needsSize
+    ? selectedSize !== null
+      ? sizeStockOf(selectedSize)
+      : undefined
+    : incoming?.stock
   const [payMode, setPayMode] = useState(2) // 0=online,1=cod,2=partial
   const [wishlisted, setWishlisted] = useState(false)
   const [sizeSheetOpen, setSizeSheetOpen] = useState(false)
@@ -87,7 +106,11 @@ export function ProductPage({
       return
     }
     if (!incoming) return
-    add(incoming, selectedSize !== null ? String(selectedSize) : null, qty)
+    // Belt and braces on top of the disabled "+" button below — the real
+    // guard against overselling is the checkout stock check, this just keeps
+    // the cart itself from showing a promise the picker already knows is false.
+    const cappedQty = knownStock !== undefined ? Math.min(qty, knownStock) : qty
+    add(incoming, selectedSize !== null ? String(selectedSize) : null, cappedQty)
     setSizeError(false)
     setAdded(true)
     setTimeout(() => setAdded(false), 2000)
@@ -265,12 +288,16 @@ export function ProductPage({
               </div>
               <div className="flex flex-wrap gap-2">
                 {sizes.map((s) => {
-                  const soldOut = outOfStock
+                  const soldOut = sizeSoldOut(s)
                   return (
                     <button
                       key={s}
                       disabled={soldOut}
-                      onClick={() => setSelectedSize(s)}
+                      onClick={() => {
+                        setSelectedSize(s)
+                        const n = sizeStockOf(s)
+                        if (n !== undefined) setQty((q) => Math.min(Math.max(q, 1), Math.max(n, 1)))
+                      }}
                       className="w-12 h-12 text-sm font-bold border-2 transition-all duration-150"
                       style={{
                         borderColor:
@@ -294,13 +321,22 @@ export function ProductPage({
                   )
                 })}
               </div>
-              {/* Real stock. The previous line hardcoded "Only 2 left in UK 9"
-                  on every product regardless of what was actually on hand. */}
-              {typeof incoming?.stock === 'number' && incoming.stock > 0 && incoming.stock <= 5 && (
-                <p className="mt-2 text-xs font-medium" style={{ color: 'var(--warning)' }}>
-                  ⚠ Only {incoming.stock} left in stock
-                </p>
-              )}
+              {/* Real stock — the selected size's own count once one is
+                  chosen, otherwise the product-wide count for an accessory. */}
+              {needsSize
+                ? selectedSize !== null &&
+                  typeof knownStock === 'number' &&
+                  knownStock > 0 &&
+                  knownStock <= 5 && (
+                    <p className="mt-2 text-xs font-medium" style={{ color: 'var(--warning)' }}>
+                      ⚠ Only {knownStock} left in UK {selectedSize}
+                    </p>
+                  )
+                : typeof incoming?.stock === 'number' && incoming.stock > 0 && incoming.stock <= 5 && (
+                    <p className="mt-2 text-xs font-medium" style={{ color: 'var(--warning)' }}>
+                      ⚠ Only {incoming.stock} left in stock
+                    </p>
+                  )}
             </div>
 
             {/* Quantity stepper */}
@@ -323,9 +359,15 @@ export function ProductPage({
                   {qty}
                 </span>
                 <button
-                  onClick={() => setQty((q) => q + 1)}
+                  onClick={() =>
+                    setQty((q) => (typeof knownStock === 'number' ? Math.min(knownStock, q + 1) : q + 1))
+                  }
+                  disabled={typeof knownStock === 'number' && qty >= knownStock}
                   className="w-10 h-10 flex items-center justify-center text-lg font-bold transition-colors duration-150"
-                  style={{ color: 'var(--text-primary)' }}
+                  style={{
+                    color: 'var(--text-primary)',
+                    opacity: typeof knownStock === 'number' && qty >= knownStock ? 0.35 : 1,
+                  }}
                 >
                   +
                 </button>
@@ -593,21 +635,31 @@ export function ProductPage({
               SELECT SIZE (UK)
             </h3>
             <div className="grid grid-cols-6 gap-2 mb-6">
-              {sizes.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setSelectedSize(s)}
-                  className="h-12 text-sm font-bold border-2 transition-all duration-150"
-                  style={{
-                    borderColor: selectedSize === s ? 'var(--accent)' : 'var(--border)',
-                    background: selectedSize === s ? 'var(--accent)' : 'transparent',
-                    color: selectedSize === s ? '#fff' : 'var(--text-primary)',
-                    borderRadius: 4,
-                  }}
-                >
-                  {s}
-                </button>
-              ))}
+              {sizes.map((s) => {
+                const soldOut = sizeSoldOut(s)
+                return (
+                  <button
+                    key={s}
+                    disabled={soldOut}
+                    onClick={() => {
+                      setSelectedSize(s)
+                      const n = sizeStockOf(s)
+                      if (n !== undefined) setQty((q) => Math.min(Math.max(q, 1), Math.max(n, 1)))
+                    }}
+                    className="h-12 text-sm font-bold border-2 transition-all duration-150"
+                    style={{
+                      borderColor: selectedSize === s ? 'var(--accent)' : 'var(--border)',
+                      background: selectedSize === s ? 'var(--accent)' : 'transparent',
+                      color: soldOut ? 'var(--text-muted)' : selectedSize === s ? '#fff' : 'var(--text-primary)',
+                      opacity: soldOut ? 0.4 : 1,
+                      textDecoration: soldOut ? 'line-through' : 'none',
+                      borderRadius: 4,
+                    }}
+                  >
+                    {s}
+                  </button>
+                )
+              })}
             </div>
             <button
               onClick={() => { handleAddToCart(); setSizeSheetOpen(false) }}

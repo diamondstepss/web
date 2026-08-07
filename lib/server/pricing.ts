@@ -99,12 +99,20 @@ export async function priceOrder(
 
   const { data: products, error } = await db
     .from('products')
-    .select('slug, brand, title, price, image, stock, is_active')
+    .select('id, slug, brand, title, price, image, stock, is_active')
     .in('slug', slugs)
 
   if (error) throw new CheckoutError('Could not price your cart.', 500)
 
   const bySlug = new Map((products ?? []).map((p) => [p.slug as string, p]))
+
+  // Per-size stock, for whichever of these products actually track it —
+  // accessories have no rows here and fall back to `products.stock` below.
+  const productIds = (products ?? []).map((p) => p.id as string)
+  const { data: sizeStock } = productIds.length
+    ? await db.from('product_size_stock').select('product_id, size, stock').in('product_id', productIds)
+    : { data: [] }
+  const stockBySize = new Map((sizeStock ?? []).map((r) => [`${r.product_id}:${r.size}`, r.stock as number]))
 
   const lines: PricedLine[] = requested.map((l) => {
     const p = bySlug.get(l.productId)
@@ -112,10 +120,13 @@ export async function priceOrder(
     if (!p.is_active) throw new CheckoutError(`"${p.title}" is no longer available.`)
 
     const qty = Math.max(1, Math.min(Math.floor(l.qty) || 1, 10))
-    if (p.stock < qty) {
-      throw new CheckoutError(
-        p.stock === 0 ? `"${p.title}" just sold out.` : `Only ${p.stock} left of "${p.title}".`,
-      )
+
+    // A sized line checks that size's own count; a sizeless one (an
+    // accessory, or a legacy line with no size) checks the product total.
+    const available = l.size !== null ? stockBySize.get(`${p.id}:${l.size}`) ?? 0 : (p.stock as number)
+    const label = l.size ? `"${p.title}" in UK ${l.size}` : `"${p.title}"`
+    if (available < qty) {
+      throw new CheckoutError(available === 0 ? `${label} just sold out.` : `Only ${available} left of ${label}.`)
     }
 
     return {

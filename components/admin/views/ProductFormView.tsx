@@ -5,10 +5,27 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, PackageX, ExternalLink } from 'lucide-react'
 import type { DbProduct } from '@/lib/catalog'
-import { adminFetchProduct, createProduct, updateProduct, slugify } from '@/lib/catalog-admin'
+import {
+  adminFetchProduct,
+  createProduct,
+  updateProduct,
+  slugify,
+  fetchSizeStock,
+  saveSizeStock,
+} from '@/lib/catalog-admin'
 import GalleryUploader from '@/components/admin/GalleryUploader'
 import AiDescriptionButton from '@/components/admin/AiDescriptionButton'
 import { AdminField, Panel, Eyebrow, ErrorNote, EmptyState, inr } from '@/components/admin/shared'
+
+/** Offered as toggleable rows on a new footwear product. Anything outside
+ *  this range can still be added by typing it into "Add a size" below. */
+const CANDIDATE_SIZES = ['5', '6', '7', '8', '9', '10', '11', '12']
+
+/** A brand-new product defaults to the range actually stocked historically
+ *  (per the old comma-list placeholder this replaced), not every candidate. */
+const DEFAULT_SIZE_STOCK: Record<string, string> = Object.fromEntries(
+  ['6', '7', '8', '9', '10', '11'].map((s) => [s, '0']),
+)
 
 /**
  * Create and edit both live at a real URL (/admin/products/new and
@@ -25,24 +42,44 @@ export default function ProductFormView({ productId }: { productId?: string }) {
 
   const [f, setF] = useState({
     title: '', brand: '', slug: '', price: '', mrp: '', image: '',
-    stock: '10', sizes: '', description: '', is_featured: false, is_active: true,
+    stock: '10', description: '', is_featured: false, is_active: true,
   })
+
+  // Per-size stock, keyed by size — a size is "stocked" if it has a key here
+  // at all, regardless of whether the value is currently 0. Kept apart from
+  // `f` because it isn't a column on `products`; it's its own table. Starts
+  // empty (an accessory) for a brand-new product, same as the field this
+  // replaced used to.
+  const [sizeStock, setSizeStock] = useState<Record<string, string>>({})
+  const [newSize, setNewSize] = useState('')
 
   useEffect(() => {
     if (!productId) return
     let cancelled = false
-    adminFetchProduct(productId)
-      .then((p) => {
+    Promise.all([adminFetchProduct(productId), fetchSizeStock(productId)])
+      .then(([p, rows]) => {
         if (cancelled) return
         if (!p) return setNotFound(true)
         setProduct(p)
         setF({
           title: p.title ?? '', brand: p.brand ?? '', slug: p.slug ?? '',
           price: String(p.price ?? ''), mrp: String(p.mrp ?? ''), image: p.image ?? '',
-          stock: String(p.stock ?? 0), sizes: (p.sizes ?? []).join(', '),
+          stock: String(p.stock ?? 0),
           description: p.description ?? '',
           is_featured: p.is_featured ?? false, is_active: p.is_active ?? true,
         })
+        // A footwear product saved before this feature existed has sizes on
+        // the product row but no product_size_stock rows yet (the migration
+        // seeds those at 0, but only once it's actually been run) — fall
+        // back to the product's own size list so the picker still shows the
+        // right sizes instead of silently relabelling it an accessory.
+        if (rows.length) {
+          setSizeStock(Object.fromEntries(rows.map((r) => [r.size, String(r.stock)])))
+        } else if (p.sizes?.length) {
+          setSizeStock(Object.fromEntries(p.sizes.map((s) => [s, '0'])))
+        } else {
+          setSizeStock({})
+        }
       })
       .catch((e) => !cancelled && setError(e instanceof Error ? e.message : 'Could not load that product.'))
       .finally(() => !cancelled && setLoading(false))
@@ -54,7 +91,17 @@ export default function ProductFormView({ productId }: { productId?: string }) {
 
   // An accessory is simply a product with no sizes — the same condition the
   // storefront, cart and order emails already use to skip the size picker.
-  const isAccessory = f.sizes.trim() === ''
+  const isAccessory = Object.keys(sizeStock).length === 0
+
+  const toggleSize = (size: string) =>
+    setSizeStock((prev) => {
+      const next = { ...prev }
+      if (size in next) delete next[size]
+      else next[size] = '0'
+      return next
+    })
+
+  const totalSizeStock = Object.values(sizeStock).reduce((n, v) => n + (Number(v) || 0), 0)
 
   // Live discount readout — saves doing the arithmetic in your head.
   const priceN = Number(f.price) || 0
@@ -72,19 +119,31 @@ export default function ProductFormView({ productId }: { productId?: string }) {
       price: Number(f.price),
       mrp: Number(f.mrp),
       image: f.image.trim() || null,
-      stock: Number(f.stock) || 0,
-      sizes: f.sizes.split(',').map((x) => x.trim()).filter(Boolean),
+      // For footwear this is a placeholder — saveSizeStock below triggers the
+      // database to recompute it as the real sum a moment later. Sending the
+      // honest running total rather than the stale field just means nothing
+      // briefly shows a wrong number in between.
+      stock: isAccessory ? Number(f.stock) || 0 : totalSizeStock,
+      sizes: Object.keys(sizeStock).sort((a, b) => Number(a) - Number(b)),
       description: f.description.trim() || null,
       is_featured: f.is_featured,
       is_active: f.is_active,
     }
+    const sizeRows = isAccessory
+      ? []
+      : Object.entries(sizeStock).map(([size, stock]) => ({
+          size,
+          stock: Math.max(0, Math.floor(Number(stock)) || 0),
+        }))
     try {
       if (product) {
         await updateProduct(product.id, payload)
+        await saveSizeStock(product.id, sizeRows)
         router.push('/admin/products')
       } else {
         // Land on the edit page so the gallery uploader is immediately usable.
         const created = await createProduct(payload)
+        await saveSizeStock(created.id, sizeRows)
         router.push(`/admin/products/${created.id}`)
       }
       router.refresh()
@@ -209,8 +268,16 @@ export default function ProductFormView({ productId }: { productId?: string }) {
               <AdminField label="MRP ₹">
                 <input required type="number" min="0" value={f.mrp} onChange={set('mrp')} className="adm-input adm-num" />
               </AdminField>
-              <AdminField label="Stock">
-                <input type="number" min="0" value={f.stock} onChange={set('stock')} className="adm-input adm-num" />
+              <AdminField label="Stock" hint={isAccessory ? undefined : 'Set from the sizes below — not edited directly.'}>
+                <input
+                  type="number"
+                  min="0"
+                  value={isAccessory ? f.stock : totalSizeStock}
+                  onChange={set('stock')}
+                  disabled={!isAccessory}
+                  className="adm-input adm-num"
+                  style={isAccessory ? undefined : { opacity: 0.6 }}
+                />
               </AdminField>
             </div>
             <div className="mt-4">
@@ -220,31 +287,81 @@ export default function ProductFormView({ productId }: { productId?: string }) {
                   rather than an empty text box means the shop owner is never
                   guessing what a blank field does. */}
               <AdminField
-                label="Sizes (UK)"
+                label="Sizes & stock (UK)"
                 hint={
                   isAccessory
                     ? 'Accessories are sold one-size, so no size is asked for at checkout.'
-                    : 'Comma separated, e.g. 6, 7, 8, 9, 10, 11.'
+                    : 'Check each size you stock and enter how many are actually left of it — the storefront picker will grey out anything at zero.'
                 }
               >
-                <label className="flex items-center gap-2 mb-2 text-[12px]" style={{ color: 'var(--adm-text-2)' }}>
+                <label className="flex items-center gap-2 mb-3 text-[12px]" style={{ color: 'var(--adm-text-2)' }}>
                   <input
                     type="checkbox"
                     checked={isAccessory}
-                    onChange={(e) =>
-                      setF((prev) => ({ ...prev, sizes: e.target.checked ? '' : '6, 7, 8, 9, 10, 11' }))
-                    }
+                    onChange={(e) => setSizeStock(e.target.checked ? {} : DEFAULT_SIZE_STOCK)}
                   />
                   This is an accessory — one size, no size picker
                 </label>
-                <input
-                  value={f.sizes}
-                  onChange={set('sizes')}
-                  disabled={isAccessory}
-                  placeholder={isAccessory ? 'One size' : '6, 7, 8, 9, 10, 11'}
-                  className="adm-input"
-                  style={isAccessory ? { opacity: 0.5 } : undefined}
-                />
+
+                {!isAccessory && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[...new Set([...CANDIDATE_SIZES, ...Object.keys(sizeStock)])]
+                      .sort((a, b) => Number(a) - Number(b))
+                      .map((s) => {
+                        const included = s in sizeStock
+                        return (
+                          <div
+                            key={s}
+                            className="flex items-center gap-1.5 px-2 py-1.5"
+                            style={{ border: '1px solid var(--adm-line)', borderRadius: 'var(--adm-r-sm)' }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={included}
+                              onChange={() => toggleSize(s)}
+                              style={{ accentColor: 'var(--adm-accent)' }}
+                            />
+                            <span className="text-[12px] w-4 shrink-0" style={{ color: 'var(--adm-text)' }}>
+                              {s}
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={sizeStock[s] ?? ''}
+                              onChange={(e) => setSizeStock((prev) => ({ ...prev, [s]: e.target.value }))}
+                              disabled={!included}
+                              className="adm-input adm-num flex-1 min-w-0"
+                              style={{ height: 28, opacity: included ? 1 : 0.4 }}
+                            />
+                          </div>
+                        )
+                      })}
+                  </div>
+                )}
+
+                {!isAccessory && (
+                  <div className="flex gap-1.5 mt-2.5">
+                    <input
+                      value={newSize}
+                      onChange={(e) => setNewSize(e.target.value)}
+                      placeholder="Add a size, e.g. 4.5 or 13"
+                      className="adm-input flex-1"
+                      style={{ height: 30 }}
+                    />
+                    <button
+                      type="button"
+                      disabled={!newSize.trim() || newSize.trim() in sizeStock}
+                      onClick={() => {
+                        setSizeStock((prev) => ({ ...prev, [newSize.trim()]: '0' }))
+                        setNewSize('')
+                      }}
+                      className="adm-btn adm-btn-ghost"
+                      style={{ height: 30, padding: '0 12px' }}
+                    >
+                      Add
+                    </button>
+                  </div>
+                )}
               </AdminField>
             </div>
           </Panel>

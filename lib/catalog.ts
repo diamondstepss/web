@@ -25,6 +25,8 @@ export interface DbProduct {
   position: number
   /** Present only when the query embeds them — see PRODUCT_SELECT. */
   product_categories?: { categories: { slug: string } | null }[]
+  /** Present only on the single-product query — see PRODUCT_DETAIL_SELECT. */
+  product_size_stock?: { size: string; stock: number }[]
 }
 
 export interface DbCategory {
@@ -55,6 +57,9 @@ export function toProduct(row: DbProduct): Product {
     categories: (row.product_categories ?? [])
       .map((pc) => pc.categories?.slug)
       .filter((s): s is string => Boolean(s)),
+    sizeStock: row.product_size_stock
+      ? Object.fromEntries(row.product_size_stock.map((r) => [Number(r.size), r.stock]))
+      : undefined,
   }
 }
 
@@ -64,6 +69,14 @@ export function toProduct(row: DbProduct): Product {
  * through the product_categories join table's declared foreign keys.
  */
 const PRODUCT_SELECT = '*,product_categories(categories(slug))'
+
+/**
+ * The single-product page additionally needs per-size stock, to grey out
+ * specific sold-out sizes in the picker — detail no listing card has any use
+ * for, so it stays off the shared PRODUCT_SELECT rather than costing every
+ * grid and rail an embed they'd throw away.
+ */
+const PRODUCT_DETAIL_SELECT = `${PRODUCT_SELECT},product_size_stock(size,stock)`
 
 const REST = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1`
 const KEY =
@@ -105,7 +118,9 @@ export async function getFeaturedProducts(): Promise<Product[]> {
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
-  const rows = await rest<DbProduct>(`products?select=${PRODUCT_SELECT}&slug=eq.${encodeURIComponent(slug)}&limit=1`)
+  const rows = await rest<DbProduct>(
+    `products?select=${PRODUCT_DETAIL_SELECT}&slug=eq.${encodeURIComponent(slug)}&limit=1`,
+  )
   return rows[0] ? toProduct(rows[0]) : null
 }
 

@@ -75,6 +75,40 @@ export async function updateProduct(id: string, patch: Partial<ProductInput>): P
   return data as DbProduct
 }
 
+export interface SizeStockRow {
+  size: string
+  stock: number
+}
+
+/** Per-size stock for a footwear product. Empty for an accessory. */
+export async function fetchSizeStock(productId: string): Promise<SizeStockRow[]> {
+  const { data, error } = await db()
+    .from('product_size_stock')
+    .select('size, stock')
+    .eq('product_id', productId)
+  if (error) throw error
+  return (data ?? []) as SizeStockRow[]
+}
+
+/**
+ * Replaces a product's per-size stock wholesale. A delete-then-insert rather
+ * than diffing old rows against new ones — simpler, and it can't leave a
+ * removed size's row behind the way a partial update could.
+ *
+ * `products.stock` is not touched here — the database trigger from migration
+ * 0018 recomputes it from these rows the moment they change.
+ */
+export async function saveSizeStock(productId: string, rows: SizeStockRow[]): Promise<void> {
+  const { error: delErr } = await db().from('product_size_stock').delete().eq('product_id', productId)
+  if (delErr) throw delErr
+  if (!rows.length) return
+
+  const { error: insErr } = await db()
+    .from('product_size_stock')
+    .insert(rows.map((r) => ({ product_id: productId, size: r.size, stock: r.stock })))
+  if (insErr) throw insErr
+}
+
 export async function deleteProduct(id: string): Promise<void> {
   // Storage first: after the row is gone there is no record of what was
   // uploaded, and the files would sit in the bucket forever.
