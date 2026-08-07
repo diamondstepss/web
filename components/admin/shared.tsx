@@ -18,6 +18,12 @@ export const inr = (n: number | string) => `₹${Number(n).toLocaleString('en-IN
 export const shortDate = (iso: string) =>
   new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
 
+/** The time half of a shortDate() cell: "2:45 pm" — printed underneath the
+ *  date rather than folded into one string, so both stay legible at table
+ *  size instead of one long line getting truncated. */
+export const shortTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }).toLowerCase()
+
 /** The exact moment, for a title="" tooltip on a shortDate() cell. */
 export const fullDateTime = (iso: string) =>
   new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })

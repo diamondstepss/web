@@ -18,6 +18,7 @@ import { useConfirm } from '@/components/ConfirmDialog'
 import {
   inr,
   shortDate,
+  shortTime,
   fullDateTime,
   ToggleSwitch,
   Pagination,
@@ -399,11 +400,13 @@ export default function ProductsView() {
                         </span>
                       </div>
                     </td>
-                    <td className="whitespace-nowrap text-[11.5px]" style={{ color: 'var(--adm-text-3)' }} title={fullDateTime(p.created_at)}>
-                      {shortDate(p.created_at)}
+                    <td className="whitespace-nowrap" title={fullDateTime(p.created_at)}>
+                      <p className="text-[11.5px]" style={{ color: 'var(--adm-text-2)' }}>{shortDate(p.created_at)}</p>
+                      <p className="text-[10px] mt-0.5" style={{ color: 'var(--adm-text-3)' }}>{shortTime(p.created_at)}</p>
                     </td>
-                    <td className="whitespace-nowrap text-[11.5px]" style={{ color: 'var(--adm-text-3)' }} title={fullDateTime(p.updated_at)}>
-                      {shortDate(p.updated_at)}
+                    <td className="whitespace-nowrap" title={fullDateTime(p.updated_at)}>
+                      <p className="text-[11.5px]" style={{ color: 'var(--adm-text-2)' }}>{shortDate(p.updated_at)}</p>
+                      <p className="text-[10px] mt-0.5" style={{ color: 'var(--adm-text-3)' }}>{shortTime(p.updated_at)}</p>
                     </td>
                     <td>
                       <div className="flex gap-1.5 justify-end">
