@@ -246,19 +246,21 @@ export function getPhotoPresets(): Promise<PhotoEnhanceOffer> {
 }
 
 /**
- * Cleans up one photo.
+ * Cleans up or restyles one photo. Pass exactly one of `presetId` or
+ * `customPrompt` — the service rejects a request naming both or neither, so
+ * this doesn't try to guess which was meant.
  *
  * The URL that comes back is short-lived, same as a banner — the caller must
  * download and store it rather than saving the link.
  */
 export function enhancePhoto(
   imageUrl: string,
-  presetId: string,
+  edit: { presetId: string } | { customPrompt: string },
   idempotencyKey: string,
 ): Promise<PhotoEnhanceResult> {
   return call<PhotoEnhanceResult>('/v1/enhance/photo', {
     method: 'POST',
-    body: { imageUrl, presetId },
+    body: { imageUrl, ...edit },
     idempotencyKey,
   })
 }

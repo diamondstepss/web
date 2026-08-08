@@ -12,13 +12,19 @@ const BUCKET = 'product-images'
 /**
  * Cleans up one existing product photo and keeps it.
  *
- * `GET` lists the presets on offer. `POST { imageId, presetId }` reads that
- * image's current URL from the database — never from the browser, so the
- * credit spent always buys a clean-up of a photo that is actually on this
- * product, the same reason the description route reads its facts from the
- * row rather than trusting what the client sends — enhances it, and
- * overwrites the same `product_media` row in place. Position, "main image"
- * status and alt text all stay put; only the url changes.
+ * `GET` lists the presets on offer. `POST { imageId, presetId }` or
+ * `POST { imageId, customPrompt }` reads that image's current URL from the
+ * database — never from the browser, so the credit spent always buys a
+ * clean-up of a photo that is actually on this product, the same reason the
+ * description route reads its facts from the row rather than trusting what
+ * the client sends — enhances it, and overwrites the same `product_media`
+ * row in place. Position, "main image" status and alt text all stay put;
+ * only the url changes.
+ *
+ * `customPrompt` lets the shop describe the background/design in their own
+ * words instead of picking a preset — ai-service still appends its own
+ * product-preservation instructions server-side regardless of which one was
+ * sent, so free text restyles the backdrop, never the product.
  *
  * The old file in storage is left behind rather than deleted here: the Media
  * page's orphan scan (`lib/media.ts` `findOrphanedFiles`) already exists to
@@ -47,7 +53,7 @@ export async function POST(req: NextRequest) {
   const guard = await requireAdmin()
   if ('response' in guard) return guard.response
 
-  let body: { imageId?: unknown; presetId?: unknown; idempotencyKey?: unknown }
+  let body: { imageId?: unknown; presetId?: unknown; customPrompt?: unknown; idempotencyKey?: unknown }
   try {
     body = (await req.json()) as typeof body
   } catch {
@@ -56,9 +62,11 @@ export async function POST(req: NextRequest) {
 
   const imageId = typeof body.imageId === 'string' ? body.imageId : ''
   const presetId = typeof body.presetId === 'string' ? body.presetId : ''
-  if (!imageId || !presetId) {
-    return NextResponse.json({ error: 'Choose a photo and a preset.' }, { status: 400 })
+  const customPrompt = typeof body.customPrompt === 'string' ? body.customPrompt.trim() : ''
+  if (!imageId || (!presetId && !customPrompt)) {
+    return NextResponse.json({ error: 'Choose a photo, and a preset or a custom description.' }, { status: 400 })
   }
+  const edit = customPrompt ? { customPrompt } : { presetId }
 
   const idempotencyKey =
     typeof body.idempotencyKey === 'string' && body.idempotencyKey.length <= 100
@@ -84,7 +92,7 @@ export async function POST(req: NextRequest) {
   // ── Enhance ───────────────────────────────────────────────────────────────
   let result
   try {
-    result = await enhancePhoto(image.url as string, presetId, idempotencyKey)
+    result = await enhancePhoto(image.url as string, edit, idempotencyKey)
   } catch (e) {
     if (e instanceof AiServiceError) {
       const status = e.kind === 'no-credits' ? 402 : e.kind === 'rate-limited' ? 429 : 502

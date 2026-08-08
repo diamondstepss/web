@@ -44,7 +44,12 @@ export function ImageField({
   const [configured, setConfigured] = useState<boolean | null>(null)
   const [credits, setCredits] = useState<number | null>(null)
   const [occasion, setOccasion] = useState('plain-studio')
-  const [format, setFormat] = useState('square')
+  // Fixed, not a choice: every current use of this field is a cover tile at
+  // one known aspect, and none of the banner shapes (21:9/16:9/9:16 hero,
+  // header, story) crop cleanly into it — square crops the most gracefully
+  // of the four regardless of the tile's exact ratio, so there is nothing
+  // useful for the admin to pick here.
+  const format = 'square'
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<{ text: string; tone: 'ok' | 'bad' } | null>(null)
 
@@ -209,7 +214,7 @@ export function ImageField({
             shoe is one you cannot actually sell.
           </p>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div>
             <label className="block">
               <span className="block mb-1 text-[10.5px]" style={{ color: 'var(--adm-text-3)' }}>Style</span>
               <select value={occasion} onChange={(e) => setOccasion(e.target.value)} className="adm-input" style={{ height: 32 }}>
@@ -218,14 +223,6 @@ export function ImageField({
                     {o.label}
                     {o.season !== 'Any time' ? ` · ${o.season}` : ''}
                   </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="block mb-1 text-[10.5px]" style={{ color: 'var(--adm-text-3)' }}>Shape</span>
-              <select value={format} onChange={(e) => setFormat(e.target.value)} className="adm-input" style={{ height: 32 }}>
-                {options.formats.map((f) => (
-                  <option key={f.id} value={f.id}>{f.label} · {f.aspect}</option>
                 ))}
               </select>
             </label>

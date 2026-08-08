@@ -48,6 +48,8 @@ export default function GalleryUploader({ productId }: { productId: string }) {
   const [showClean, setShowClean] = useState(false)
   const [cleanTargetId, setCleanTargetId] = useState('')
   const [cleanPreset, setCleanPreset] = useState('')
+  const [customPrompt, setCustomPrompt] = useState('')
+  const [customPromptMaxLength, setCustomPromptMaxLength] = useState(300)
   const [cleanBusy, setCleanBusy] = useState(false)
   const [cleanNote, setCleanNote] = useState<{ text: string; tone: 'ok' | 'bad' } | null>(null)
   // Held across retries so a dropped reply is not charged twice.
@@ -84,13 +86,21 @@ export default function GalleryUploader({ productId }: { productId: string }) {
     let alive = true
     fetch('/api/admin/ai/photo')
       .then((r) => r.json())
-      .then((d: { configured?: boolean; presets?: PhotoPreset[]; creditsPerPhoto?: number }) => {
-        if (!alive) return
-        setCleanConfigured(Boolean(d.configured))
-        if (d.presets) setPresets(d.presets)
-        if (d.presets?.[0]) setCleanPreset((p) => p || d.presets![0].id)
-        if (typeof d.creditsPerPhoto === 'number') setCreditsPerPhoto(d.creditsPerPhoto)
-      })
+      .then(
+        (d: {
+          configured?: boolean
+          presets?: PhotoPreset[]
+          creditsPerPhoto?: number
+          customPromptMaxLength?: number
+        }) => {
+          if (!alive) return
+          setCleanConfigured(Boolean(d.configured))
+          if (d.presets) setPresets(d.presets)
+          if (d.presets?.[0]) setCleanPreset((p) => p || d.presets![0].id)
+          if (typeof d.creditsPerPhoto === 'number') setCreditsPerPhoto(d.creditsPerPhoto)
+          if (typeof d.customPromptMaxLength === 'number') setCustomPromptMaxLength(d.customPromptMaxLength)
+        },
+      )
       .catch(() => alive && setCleanConfigured(false))
     return () => {
       alive = false
@@ -104,12 +114,14 @@ export default function GalleryUploader({ productId }: { productId: string }) {
   // when it can just fall back at read time.
   const effectiveCleanTarget = cleanTargetId || photos[0]?.id || ''
 
+  const trimmedPrompt = customPrompt.trim()
+
   const runCleanup = async () => {
-    if (!effectiveCleanTarget || !cleanPreset) return
+    if (!effectiveCleanTarget || (!cleanPreset && !trimmedPrompt)) return
 
     const ok = await confirm({
       title: 'Clean up this photo?',
-      message: `The current image will be replaced with the cleaned-up version. This uses ${creditsPerPhoto} credit${creditsPerPhoto === 1 ? '' : 's'}.`,
+      message: `The current image will be replaced with the ${trimmedPrompt ? 'restyled' : 'cleaned-up'} version. This uses ${creditsPerPhoto} credit${creditsPerPhoto === 1 ? '' : 's'}.`,
       confirmLabel: 'Clean up',
       destructive: false,
     })
@@ -125,7 +137,7 @@ export default function GalleryUploader({ productId }: { productId: string }) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           imageId: effectiveCleanTarget,
-          presetId: cleanPreset,
+          ...(trimmedPrompt ? { customPrompt: trimmedPrompt } : { presetId: cleanPreset }),
           idempotencyKey: cleanIdempotencyKey.current,
         }),
       })
@@ -151,6 +163,7 @@ export default function GalleryUploader({ productId }: { productId: string }) {
       await load()
       window.dispatchEvent(new CustomEvent(AI_CREDITS_EVENT, { detail: { credits: data.creditsRemaining } }))
       cleanIdempotencyKey.current = null
+      setCustomPrompt('')
       setCleanNote({
         text: `${data.creditsCharged ?? creditsPerPhoto} credits used · ${data.creditsRemaining ?? 0} left.`,
         tone: 'ok',
@@ -445,8 +458,8 @@ export default function GalleryUploader({ productId }: { productId: string }) {
           {showClean && (
             <div className="mt-2.5 space-y-2">
               <p className="text-[10.5px] leading-snug" style={{ color: 'var(--adm-text-3)' }}>
-                A plain backdrop and even lighting, from the photo you already have. It edits your
-                photo — it never invents a product.
+                Pick a preset, or describe your own background below. Either way it edits the photo
+                you already have — it never invents or alters the product itself.
               </p>
 
               <div className="grid grid-cols-2 gap-2">
@@ -474,8 +487,9 @@ export default function GalleryUploader({ productId }: { productId: string }) {
                   <select
                     value={cleanPreset}
                     onChange={(e) => setCleanPreset(e.target.value)}
+                    disabled={Boolean(trimmedPrompt)}
                     className="adm-input"
-                    style={{ height: 32 }}
+                    style={{ height: 32, opacity: trimmedPrompt ? 0.5 : 1 }}
                   >
                     {presets.map((p) => (
                       <option key={p.id} value={p.id} title={p.description}>
@@ -486,10 +500,32 @@ export default function GalleryUploader({ productId }: { productId: string }) {
                 </label>
               </div>
 
+              <label className="block">
+                <span className="flex items-baseline justify-between mb-1">
+                  <span className="text-[10.5px]" style={{ color: 'var(--adm-text-3)' }}>
+                    Or describe your own background/design
+                  </span>
+                  <span className="text-[9.5px]" style={{ color: 'var(--adm-text-3)' }}>
+                    {customPrompt.length}/{customPromptMaxLength}
+                  </span>
+                </span>
+                <textarea
+                  value={customPrompt}
+                  onChange={(e) => setCustomPrompt(e.target.value.slice(0, customPromptMaxLength))}
+                  placeholder="e.g. a marble pedestal with soft golden light, or a festive Diwali diya arrangement"
+                  rows={2}
+                  className="adm-input"
+                  style={{ resize: 'none' }}
+                />
+                <span className="block mt-1 text-[10px] leading-snug" style={{ color: 'var(--adm-text-3)' }}>
+                  Describes the backdrop only — the product itself is never altered, whatever you ask for.
+                </span>
+              </label>
+
               <button
                 type="button"
                 onClick={runCleanup}
-                disabled={cleanBusy || !effectiveCleanTarget || !cleanPreset}
+                disabled={cleanBusy || !effectiveCleanTarget || (!cleanPreset && !trimmedPrompt)}
                 className="adm-btn adm-btn-primary w-full"
                 style={{ height: 32 }}
               >
