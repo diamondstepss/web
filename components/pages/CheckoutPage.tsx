@@ -3,11 +3,11 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Loader2, ShieldCheck, Wallet, CreditCard, Banknote } from 'lucide-react'
+import { Loader2, ShieldCheck, Wallet, CreditCard, Banknote, Check } from 'lucide-react'
 import PageHero from '@/components/PageHero'
 import { useCart } from '@/context/CartContext'
 import { useAuth } from '@/context/AuthContext'
-import { fetchAddresses } from '@/lib/api'
+import { fetchAddresses, createAddress, type AddressInput } from '@/lib/api'
 import { Tag, X } from 'lucide-react'
 
 import { SITE } from '@/data/site'
@@ -16,13 +16,28 @@ import type { Address, PaymentMode } from '@/lib/types'
 
 const inr = (n: number) => `₹${Number(n).toLocaleString('en-IN')}`
 
+const emptyAddressForm = (name = '', phone = ''): AddressInput => ({
+  label: 'HOME',
+  name,
+  phone,
+  line1: '',
+  line2: '',
+  city: '',
+  state: '',
+  pincode: '',
+  is_default: false,
+})
+
 export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: StoreSettings }) {
   const { lines, clear } = useCart()
-  const { user, loading: authLoading } = useAuth()
+  const { user, profile, loading: authLoading } = useAuth()
   const router = useRouter()
 
   const [addresses, setAddresses] = useState<Address[]>([])
   const [addressId, setAddressId] = useState<string | null>(null)
+  const [addingAddress, setAddingAddress] = useState(false)
+  const [addressForm, setAddressForm] = useState<AddressInput>(emptyAddressForm())
+  const [addressBusy, setAddressBusy] = useState(false)
   const [mode, setMode] = useState<PaymentMode>('PREPAID')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -91,10 +106,35 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
       .then((a) => {
         setAddresses(a)
         setAddressId(a.find((x) => x.is_default)?.id ?? a[0]?.id ?? null)
+        if (a.length === 0) setAddingAddress(true)
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Could not load addresses.'))
       .finally(() => setLoading(false))
   }, [user])
+
+  // Prefill the inline form once the profile arrives, without clobbering typing.
+  useEffect(() => {
+    if (!profile) return
+    setAddressForm((f) => ({ ...f, name: f.name || profile.full_name || '', phone: f.phone || profile.phone || '' }))
+  }, [profile])
+
+  const saveAddress = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!user) return
+    setAddressBusy(true)
+    setError(null)
+    try {
+      const created = await createAddress(user.id, { ...addressForm, is_default: addresses.length === 0 })
+      setAddresses((prev) => [...prev, created])
+      setAddressId(created.id)
+      setAddingAddress(false)
+      setAddressForm(emptyAddressForm(addressForm.name, addressForm.phone))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save that address.')
+    } finally {
+      setAddressBusy(false)
+    }
+  }
 
   const address = addresses.find((a) => a.id === addressId)
   const subtotal = lines.reduce((sum, l) => sum + l.price * l.qty, 0)
@@ -220,14 +260,103 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
 
             {/* Address */}
             <div className="p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 18 }}>
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] mb-4" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-outfit)' }}>
-                Deliver to
-              </p>
-              {addresses.length === 0 ? (
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                  No saved address.{' '}
-                  <Link href="/my-account" style={{ color: 'var(--accent)', fontWeight: 700 }}>Add one</Link> to continue.
+              <div className="flex items-center justify-between mb-4">
+                <p className="flex items-center gap-2.5 text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-outfit)' }}>
+                  <StepBadge n={1} done={!addingAddress && Boolean(address)} />
+                  Deliver to
                 </p>
+                {!addingAddress && addresses.length > 0 && (
+                  <button
+                    onClick={() => setAddingAddress(true)}
+                    className="text-[11px] font-black uppercase tracking-widest"
+                    style={{ color: 'var(--accent)', fontFamily: 'var(--font-outfit)' }}
+                  >
+                    + Add new
+                  </button>
+                )}
+              </div>
+
+              {addingAddress ? (
+                <form onSubmit={saveAddress} className="grid sm:grid-cols-2 gap-4">
+                  <Field label="Full name">
+                    <input
+                      required
+                      value={addressForm.name}
+                      onChange={(e) => setAddressForm({ ...addressForm, name: e.target.value })}
+                      className="w-full px-4 text-sm outline-none"
+                      style={fieldStyle}
+                    />
+                  </Field>
+                  <Field label="Phone">
+                    <input
+                      required
+                      value={addressForm.phone}
+                      onChange={(e) => setAddressForm({ ...addressForm, phone: e.target.value })}
+                      placeholder="+91"
+                      className="w-full px-4 text-sm outline-none"
+                      style={fieldStyle}
+                    />
+                  </Field>
+                  <div className="sm:col-span-2">
+                    <Field label="Address">
+                      <input
+                        required
+                        value={addressForm.line1}
+                        onChange={(e) => setAddressForm({ ...addressForm, line1: e.target.value })}
+                        placeholder="House no., street, area"
+                        className="w-full px-4 text-sm outline-none"
+                        style={fieldStyle}
+                      />
+                    </Field>
+                  </div>
+                  <Field label="City">
+                    <input
+                      required
+                      value={addressForm.city}
+                      onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
+                      className="w-full px-4 text-sm outline-none"
+                      style={fieldStyle}
+                    />
+                  </Field>
+                  <Field label="State">
+                    <input
+                      required
+                      value={addressForm.state}
+                      onChange={(e) => setAddressForm({ ...addressForm, state: e.target.value })}
+                      className="w-full px-4 text-sm outline-none"
+                      style={fieldStyle}
+                    />
+                  </Field>
+                  <Field label="Pincode">
+                    <input
+                      required
+                      value={addressForm.pincode}
+                      onChange={(e) => setAddressForm({ ...addressForm, pincode: e.target.value })}
+                      className="w-full px-4 text-sm outline-none"
+                      style={fieldStyle}
+                    />
+                  </Field>
+                  <div className="flex gap-3 items-end">
+                    <button
+                      type="submit"
+                      disabled={addressBusy}
+                      className="flex-1 py-3.5 text-[11px] font-black uppercase tracking-widest text-white"
+                      style={{ background: 'var(--accent)', borderRadius: 99, fontFamily: 'var(--font-outfit)', opacity: addressBusy ? 0.6 : 1 }}
+                    >
+                      {addressBusy ? 'Saving…' : 'Save & continue'}
+                    </button>
+                    {addresses.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setAddingAddress(false)}
+                        className="py-3.5 px-5 text-[11px] font-black uppercase tracking-widest"
+                        style={{ border: '1px solid var(--border)', borderRadius: 99, color: 'var(--text-primary)', fontFamily: 'var(--font-outfit)' }}
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </form>
               ) : (
                 <div className="grid sm:grid-cols-2 gap-3">
                   {addresses.map((a) => {
@@ -255,11 +384,27 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
               )}
             </div>
 
-            {/* Payment */}
-            <div className="p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 18 }}>
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] mb-4" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-outfit)' }}>
+            {/* Payment — locked until an address is chosen, so the flow reads top-to-bottom */}
+            <div
+              className="p-6"
+              style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 18,
+                opacity: address ? 1 : 0.5,
+                pointerEvents: address ? 'auto' : 'none',
+                transition: 'opacity 150ms',
+              }}
+            >
+              <p className="flex items-center gap-2.5 text-[11px] font-black uppercase tracking-[0.18em] mb-4" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-outfit)' }}>
+                <StepBadge n={2} done={Boolean(address)} />
                 Payment method
               </p>
+              {!address && (
+                <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
+                  Choose a delivery address above to continue.
+                </p>
+              )}
               <div className="space-y-3">
                 {MODES.map(({ key, label, sub, icon: Icon, amount }) => {
                   const on = mode === key
@@ -383,6 +528,45 @@ function Row({ label, value, tint }: { label: string; value: string; tint?: stri
     <div className="flex items-center justify-between">
       <span style={{ color: 'var(--text-muted)' }}>{label}</span>
       <span className="font-bold" style={{ color: tint ?? 'var(--text-primary)' }}>{value}</span>
+    </div>
+  )
+}
+
+function StepBadge({ n, done }: { n: number; done: boolean }) {
+  return (
+    <span
+      className="flex items-center justify-center shrink-0"
+      style={{
+        width: 18,
+        height: 18,
+        borderRadius: 99,
+        fontSize: 10,
+        fontWeight: 900,
+        background: done ? 'var(--accent)' : 'transparent',
+        border: `1.5px solid ${done ? 'var(--accent)' : 'var(--border)'}`,
+        color: done ? '#fff' : 'var(--text-muted)',
+      }}
+    >
+      {done ? <Check size={10} /> : n}
+    </span>
+  )
+}
+
+const fieldStyle = {
+  height: 48,
+  background: 'color-mix(in srgb, var(--accent) 6%, var(--bg))',
+  border: '1px solid var(--border)',
+  borderRadius: 10,
+  color: 'var(--text-primary)',
+} as const
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>
+        {label}
+      </label>
+      {children}
     </div>
   )
 }
