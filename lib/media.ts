@@ -73,6 +73,11 @@ export async function uploadImage(
     throw new UploadError(error.message)
   }
 
+  // First image in an empty gallery becomes the listing thumbnail too.
+  if (position === 0) {
+    await db().from('products').update({ image: publicUrl }).eq('id', productId)
+  }
+
   return data as GalleryImage
 }
 
@@ -120,6 +125,18 @@ export async function deleteImage(image: GalleryImage): Promise<void> {
     const path = image.url.split(marker)[1]
     if (path) await db().storage.from(BUCKET).remove([decodeURIComponent(path)])
   }
+
+  // Removing the main image promotes whatever is now first — or clears the
+  // listing thumbnail if the gallery is empty — so it never points at a dead row.
+  const { data: remaining } = await db()
+    .from('product_media')
+    .select('url')
+    .eq('product_id', image.product_id)
+    .eq('type', 'IMAGE')
+    .order('position', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  await db().from('products').update({ image: remaining?.url ?? null }).eq('id', image.product_id)
 }
 
 /**
