@@ -151,7 +151,11 @@ export function ProductPage({
 
       <div className="mx-auto max-w-[1440px] px-6 pb-16">
         {/* Desktop: 2-col layout */}
-        <div className="flex flex-col lg:flex-row gap-10">
+        {/* items-start: without it, flex's default stretch makes the gallery
+            column match the (often taller, text-heavy) info column's height,
+            which overrides the image container's aspect-ratio and stretches
+            it into a tall rectangle instead of a square. */}
+        <div className="flex flex-col lg:flex-row lg:items-start gap-10">
           {/* ── GALLERY ────────────────────────────────────────────────── */}
           <div className="lg:w-[55%] flex gap-3">
             {/* Thumbnail rail */}
@@ -238,12 +242,13 @@ export function ProductPage({
                     alt=""
                     aria-hidden="true"
                     className="absolute inset-0 w-full h-full object-cover"
-                    style={{ filter: 'blur(28px) brightness(0.55)', transform: 'scale(1.15)' }}
+                    style={{ filter: 'blur(30px)', transform: 'scale(1.15)', opacity: 0.9 }}
                   />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={THUMBNAILS[activeThumb]?.url ?? incoming?.image ?? ''}
                     alt="Product"
-                    className="relative w-full h-full object-contain p-6 transition-transform duration-500 group-hover:scale-105"
+                    className="absolute inset-0 w-full h-full object-contain p-6 transition-transform duration-500 group-hover:scale-105"
                   />
                 </>
               )}
