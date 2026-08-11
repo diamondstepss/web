@@ -73,8 +73,9 @@ export default function ProductCard({ product, compact }: ProductCardProps) {
           }}
           className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200"
           style={{
-            background: wishlisted ? 'var(--accent)' : 'rgba(0,0,0,0.5)',
-            color: wishlisted ? '#fff' : 'var(--text-muted)',
+            background: wishlisted ? 'var(--accent)' : 'rgba(255,255,255,0.9)',
+            color: wishlisted ? '#fff' : '#111',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
           }}
           aria-label="Wishlist"
         >
