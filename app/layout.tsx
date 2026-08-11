@@ -29,8 +29,9 @@ const inter = Inter({
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://diamondstepss.com'
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { freeShippingOver } = await getStoreSettings()
+  const { freeShippingOver, codEnabled } = await getStoreSettings()
   const free = `₹${freeShippingOver.toLocaleString('en-IN')}`
+  const cod = codEnabled ? 'COD available, ' : ''
   return {
   metadataBase: new URL(SITE_URL),
   title: {
@@ -38,14 +39,14 @@ export async function generateMetadata(): Promise<Metadata> {
     template: `%s | ${SITE.name}`,
   },
   description:
-    `Authentic sneakers, sports shoes, loafers and accessories at honest prices. Free shipping over ${free}, COD available, 7-day easy returns. Shipping across India from Jalandhar.`,
+    `Authentic sneakers, sports shoes, loafers and accessories at honest prices. Free shipping over ${free}, ${cod}7-day easy returns. Shipping across India from Jalandhar.`,
   keywords: ['sneakers', 'shoes online India', 'Nike', 'Adidas', 'Jordan', 'Jalandhar', 'footwear'],
   openGraph: {
     type: 'website',
     locale: 'en_IN',
     siteName: SITE.name,
     title: `${SITE.name} — ${SITE.tagline}`,
-    description: `Authentic footwear at honest prices. Free shipping over ${free}. COD available.`,
+    description: `Authentic footwear at honest prices. Free shipping over ${free}.${codEnabled ? ' COD available.' : ''}`,
     images: ['/brand/wide-logo.png'],
   },
   twitter: { card: 'summary_large_image' },
@@ -77,7 +78,9 @@ const THEME_BOOTSTRAP = `
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Cached with the rest of the catalog, so this costs nothing per request.
-  const categories = await getCategories()
+  // Next dedupes identical fetches within a request, so this doesn't cost a
+  // second round-trip on top of the one generateMetadata already makes.
+  const [categories, settings] = await Promise.all([getCategories(), getStoreSettings()])
   return (
     <html lang="en" suppressHydrationWarning className={`${outfit.variable} ${inter.variable}`}>
       <body>
@@ -99,7 +102,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         */}
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: jsonLdScript(localBusinessJsonLd(categories)) }}
+          dangerouslySetInnerHTML={{ __html: jsonLdScript(localBusinessJsonLd(categories, settings.codEnabled)) }}
         />
         {/* Sitelinks search box. Points at the real /search route. */}
         <script

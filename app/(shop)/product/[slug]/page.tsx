@@ -23,7 +23,7 @@ export async function generateMetadata({
 
   return {
     title: `${product.brand} ${product.title}`,
-    description: `Buy ${product.brand} ${product.title} at ₹${product.price} (MRP ₹${product.mrp}). 100% genuine, free shipping over ₹${settings.freeShippingOver}, COD available.`,
+    description: `Buy ${product.brand} ${product.title} at ₹${product.price} (MRP ₹${product.mrp}). 100% genuine, free shipping over ₹${settings.freeShippingOver}.${settings.codEnabled ? ' COD available.' : ''}`,
     openGraph: { images: [product.image] },
   }
 }

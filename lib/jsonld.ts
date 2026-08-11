@@ -48,6 +48,10 @@ export function localBusinessJsonLd(
    * which the catch-all route answers with the whole catalog (a soft 404).
    */
   categories: { slug: string; name: string }[] = [],
+  /** From store_settings — declaring a method the shop has switched off is a
+   *  Merchant Center mismatch, the same reason `inStock` below is read from
+   *  actual stock rather than assumed. */
+  codEnabled = true,
 ) {
   return {
     '@context': 'https://schema.org',
@@ -75,7 +79,10 @@ export function localBusinessJsonLd(
     email: SITE.email,
     priceRange: '₹₹',
     currenciesAccepted: 'INR',
-    paymentAccepted: 'UPI, Credit Card, Debit Card, Net Banking, Cash on Delivery',
+    paymentAccepted: [
+      'UPI', 'Credit Card', 'Debit Card', 'Net Banking',
+      ...(codEnabled ? ['Cash on Delivery'] : []),
+    ].join(', '),
 
     address: {
       '@type': 'PostalAddress',
