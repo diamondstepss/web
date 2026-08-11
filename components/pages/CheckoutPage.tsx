@@ -7,7 +7,7 @@ import { Loader2, ShieldCheck, Wallet, CreditCard, Banknote, Check } from 'lucid
 import PageHero from '@/components/PageHero'
 import { useCart } from '@/context/CartContext'
 import { useAuth } from '@/context/AuthContext'
-import { fetchAddresses, createAddress, type AddressInput } from '@/lib/api'
+import { fetchAddresses, createAddress, fetchOrderPaymentStatus, type AddressInput } from '@/lib/api'
 import { Tag, X } from 'lucide-react'
 
 import { SITE } from '@/data/site'
@@ -49,6 +49,12 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
   const [couponMsg, setCouponMsg] = useState<string | null>(null)
   // Server-priced totals. The UI never computes money it might get wrong.
   const [quote, setQuote] = useState<{ total: number; shippingFee: number } | null>(null)
+  // Set once an order with money owed online is placed. Instamojo's hosted
+  // page has no way back to the shop, so it opens in its own tab while this
+  // one polls the webhook-backed payment status instead of navigating away.
+  const [awaitingOrder, setAwaitingOrder] = useState<string | null>(null)
+  const [awaitingPaymentUrl, setAwaitingPaymentUrl] = useState<string | null>(null)
+  const [checkingNow, setCheckingNow] = useState(false)
 
   const cartPayload = lines.map((l) => ({ productId: l.productId, size: l.size, qty: l.qty }))
 
@@ -72,6 +78,39 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lines, mode, applied])
+
+  // Polls the webhook-updated payment status while the Instamojo tab is
+  // open. Runs alongside the manual "check now" button below, which just
+  // triggers the same check on demand instead of waiting for the interval.
+  useEffect(() => {
+    if (!awaitingOrder || !user) return
+    let alive = true
+    const check = async () => {
+      try {
+        const status = await fetchOrderPaymentStatus(user.id, awaitingOrder)
+        if (alive && status === 'PAID') router.replace(`/checkout/success?order=${awaitingOrder}`)
+      } catch {
+        // Transient network error — the next poll retries.
+      }
+    }
+    check()
+    const interval = setInterval(check, 3000)
+    return () => {
+      alive = false
+      clearInterval(interval)
+    }
+  }, [awaitingOrder, user, router])
+
+  const checkPaymentNow = async () => {
+    if (!awaitingOrder || !user) return
+    setCheckingNow(true)
+    try {
+      const status = await fetchOrderPaymentStatus(user.id, awaitingOrder)
+      if (status === 'PAID') router.replace(`/checkout/success?order=${awaitingOrder}`)
+    } finally {
+      setCheckingNow(false)
+    }
+  }
 
   const applyCoupon = async () => {
     if (!coupon.trim()) return
@@ -176,15 +215,18 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
       }
 
       // Instamojo's hosted checkout page sends X-Frame-Options: SAMEORIGIN,
-      // so it can't be framed on our domain — it always breaks out to a
-      // full top-level redirect even through their own embed script. Mark
-      // the order placed before clearing the cart so the empty-cart view
-      // can't flash on screen during the moment before the browser
-      // actually navigates away.
+      // so it can't be framed on our domain, and it has no back/close
+      // control of its own — sending the browser there with a full-page
+      // redirect strands the customer with no way back to the shop. Opening
+      // it in its own tab instead leaves this tab free to poll the
+      // webhook-backed payment status and pick up the moment it's paid.
       if (d.paymentUrl) {
         setPlaced(true)
         clear()
-        window.location.href = d.paymentUrl
+        setAwaitingPaymentUrl(d.paymentUrl)
+        setAwaitingOrder(d.orderNumber)
+        setBusy(false)
+        window.open(d.paymentUrl, '_blank', 'noopener,noreferrer')
         return
       }
 
@@ -203,6 +245,43 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
     return (
       <div className="flex items-center justify-center" style={{ background: 'var(--bg)', minHeight: '60vh' }}>
         <Loader2 size={24} className="animate-spin" style={{ color: 'var(--accent)' }} />
+      </div>
+    )
+  }
+
+  if (awaitingOrder) {
+    return (
+      <div style={{ background: 'var(--bg)' }}>
+        <PageHero eyebrow="Almost yours" title="Waiting for payment" crumbs={[{ label: 'Checkout' }]} compact />
+        <div className="mx-auto max-w-[560px] px-6 pb-24 text-center">
+          <Loader2 size={24} className="animate-spin mx-auto mb-6" style={{ color: 'var(--accent)' }} />
+          <p className="text-sm font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
+            Complete the payment in the tab we opened for order {awaitingOrder}.
+          </p>
+          <p className="text-xs mb-8 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+            This page updates on its own the moment payment goes through — no need to come back and refresh.
+            You can close that tab any time after paying.
+          </p>
+          <div className="flex gap-3 justify-center flex-wrap">
+            {awaitingPaymentUrl && (
+              <button
+                onClick={() => window.open(awaitingPaymentUrl, '_blank', 'noopener,noreferrer')}
+                className="px-6 py-3 text-[11px] font-black uppercase tracking-widest"
+                style={{ border: '1px solid var(--border)', color: 'var(--text-primary)', borderRadius: 99, fontFamily: 'var(--font-outfit)' }}
+              >
+                Reopen payment tab
+              </button>
+            )}
+            <button
+              onClick={checkPaymentNow}
+              disabled={checkingNow}
+              className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-white"
+              style={{ background: 'var(--accent)', borderRadius: 99, fontFamily: 'var(--font-outfit)', opacity: checkingNow ? 0.6 : 1 }}
+            >
+              {checkingNow ? 'Checking…' : "I've paid — check now"}
+            </button>
+          </div>
+        </div>
       </div>
     )
   }

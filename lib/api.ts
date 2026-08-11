@@ -15,6 +15,19 @@ export async function fetchOrders(userId: string): Promise<Order[]> {
   return (data ?? []) as Order[]
 }
 
+/** Just the payment status for one order — cheap enough to poll while a payment tab is open. */
+export async function fetchOrderPaymentStatus(userId: string, orderNumber: string): Promise<string | null> {
+  const { data, error } = await db()
+    .from('orders')
+    .select('payment_status')
+    .eq('user_id', userId)
+    .eq('order_number', orderNumber)
+    .maybeSingle()
+
+  if (error) throw error
+  return data?.payment_status ?? null
+}
+
 export async function cancelOrder(orderId: string): Promise<void> {
   const { error } = await db().from('orders').update({ status: 'CANCELLED' }).eq('id', orderId)
   if (error) throw error
