@@ -12,6 +12,8 @@ import {
   Lock,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Play,
   Truck,
   Banknote,
@@ -334,21 +336,55 @@ export function ProductPage({
                 </>
               )}
 
-              {/* Mobile swipe dots */}
-              <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 lg:hidden">
-                {THUMBNAILS.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => { setActiveThumb(i); setPlaying(false) }}
-                    className="w-1.5 h-1.5 rounded-full transition-all"
-                    style={{
-                      background: activeThumb === i ? '#fff' : 'rgba(255,255,255,0.4)',
-                      width: activeThumb === i ? 16 : 6,
-                    }}
-                    aria-label={`Image ${i + 1}`}
-                  />
-                ))}
-              </div>
+              {/* Prev/next arrows — the click-drag and swipe gestures aren't
+                  discoverable on their own, so this is the actual visible
+                  "there's more than one photo" control. */}
+              {THUMBNAILS.length > 1 && !isVideo(THUMBNAILS[activeThumb]) && (
+                <>
+                  {activeThumb > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setActiveThumb((i) => i - 1); setPlaying(false) }}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 flex items-center justify-center rounded-full text-white transition-colors"
+                      style={{ background: 'rgba(0,0,0,0.45)' }}
+                      aria-label="Previous image"
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+                  )}
+                  {activeThumb < THUMBNAILS.length - 1 && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setActiveThumb((i) => i + 1); setPlaying(false) }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 flex items-center justify-center rounded-full text-white transition-colors"
+                      style={{ background: 'rgba(0,0,0,0.45)' }}
+                      aria-label="Next image"
+                    >
+                      <ChevronRight size={20} />
+                    </button>
+                  )}
+                </>
+              )}
+
+              {/* Position dots — shown at every width now, not just mobile,
+                  as a persistent hint that there's more than one photo and
+                  that the arrows/drag/swipe above do something. */}
+              {THUMBNAILS.length > 1 && (
+                <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
+                  {THUMBNAILS.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => { setActiveThumb(i); setPlaying(false) }}
+                      className="w-1.5 h-1.5 rounded-full transition-all"
+                      style={{
+                        background: activeThumb === i ? '#fff' : 'rgba(255,255,255,0.4)',
+                        width: activeThumb === i ? 16 : 6,
+                      }}
+                      aria-label={`Image ${i + 1}`}
+                    />
+                  ))}
+                </div>
+              )}
 
               {/* Lens — clipped to the image itself, marks what the panel is showing. */}
               {zoomActive && canZoom && (
