@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Upload, X, Loader2, Star, Play, ArrowLeft, ArrowRight, Sparkles } from 'lucide-react'
+import { Upload, Loader2, Star, Play, ArrowLeft, ArrowRight, Trash2, MoreVertical, Sparkles } from 'lucide-react'
 import {
   fetchGallery,
   uploadImage,
@@ -40,6 +40,26 @@ export default function GalleryUploader({ productId }: { productId: string }) {
   const [showVideo, setShowVideo] = useState(false)
   const input = useRef<HTMLInputElement>(null)
   const confirm = useConfirm()
+
+  // Per-photo "⋮" menu — at most one open at a time, closed on an outside
+  // click or Escape so it never lingers over a re-rendered gallery.
+  const [menuFor, setMenuFor] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!menuFor) return
+    const onClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuFor(null)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuFor(null)
+    }
+    document.addEventListener('mousedown', onClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onClick)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menuFor])
 
   // AI photo clean-up — hidden entirely when the add-on isn't connected.
   const [cleanConfigured, setCleanConfigured] = useState(false)
@@ -212,6 +232,25 @@ export default function GalleryUploader({ productId }: { productId: string }) {
     await reorderGallery(next)
   }
 
+  /** Explicit "make this the listing photo" action — moves it to the front. */
+  const setAsMain = async (index: number) => {
+    const next = [...images]
+    const [item] = next.splice(index, 1)
+    next.unshift(item)
+    setMenuFor(null)
+    setImages(next)
+    await reorderGallery(next)
+  }
+
+  /** "Edit with AI" from a photo's menu opens the clean-up section pre-aimed at it. */
+  const cleanSectionRef = useRef<HTMLDivElement>(null)
+  const editWithAi = (imageId: string) => {
+    setMenuFor(null)
+    setCleanTargetId(imageId)
+    setShowClean(true)
+    requestAnimationFrame(() => cleanSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))
+  }
+
   const remove = async (img: GalleryImage) => {
     const isMain = images[0]?.id === img.id
     const ok = await confirm({
@@ -271,31 +310,31 @@ export default function GalleryUploader({ productId }: { productId: string }) {
       ) : (
         <div className="flex flex-wrap gap-1.5 mb-3">
           {images.map((img, i) => (
-            <div
-              key={img.id}
-              className="relative group shrink-0"
-              style={{
-                width: TILE,
-                height: TILE,
-                borderRadius: 9,
-                overflow: 'hidden',
-                background: 'var(--adm-inset)',
-                border: i === 0 ? '1.5px solid var(--adm-accent)' : '1px solid var(--adm-line)',
-                boxShadow: i === 0 ? '0 0 0 3px var(--adm-accent-soft)' : 'none',
-              }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={img.type === 'YOUTUBE' ? (img.alt ?? img.url) : img.url}
-                alt=""
-                className="w-full h-full object-cover"
-              />
+            <div key={img.id} className="relative group shrink-0" style={{ width: TILE, height: TILE }}>
+              <div
+                style={{
+                  width: TILE,
+                  height: TILE,
+                  borderRadius: 9,
+                  overflow: 'hidden',
+                  background: 'var(--adm-inset)',
+                  border: i === 0 ? '1.5px solid var(--adm-accent)' : '1px solid var(--adm-line)',
+                  boxShadow: i === 0 ? '0 0 0 3px var(--adm-accent-soft)' : 'none',
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={img.type === 'YOUTUBE' ? (img.alt ?? img.url) : img.url}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
 
-              {img.type === 'YOUTUBE' && (
-                <span className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
-                  <Play size={14} color="#fff" fill="#fff" />
-                </span>
-              )}
+                {img.type === 'YOUTUBE' && (
+                  <span className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
+                    <Play size={14} color="#fff" fill="#fff" />
+                  </span>
+                )}
+              </div>
 
               {i === 0 && (
                 <span
@@ -307,43 +346,56 @@ export default function GalleryUploader({ productId }: { productId: string }) {
                 </span>
               )}
 
-              {/* Controls appear on hover so the tiles stay readable at rest */}
-              <div
-                className="absolute inset-0 flex flex-col justify-between p-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity"
-                style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.55), transparent 45%, rgba(0,0,0,0.6))' }}
+              {/* Single "⋮" entry point for every photo action, so nothing
+                  depends on someone guessing that reordering has a side effect. */}
+              <button
+                type="button"
+                onClick={() => setMenuFor(menuFor === img.id ? null : img.id)}
+                aria-label="Photo options"
+                aria-haspopup="menu"
+                aria-expanded={menuFor === img.id}
+                className="absolute top-0.5 right-0.5 flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                style={{ width: 16, height: 16, borderRadius: 99, background: 'rgba(0,0,0,0.75)', color: '#fff' }}
               >
-                <button
-                  type="button"
-                  onClick={() => remove(img)}
-                  aria-label={`Remove ${img.type === 'YOUTUBE' ? 'video' : 'image'} ${i + 1}`}
-                  className="self-end flex items-center justify-center"
-                  style={{ width: 16, height: 16, borderRadius: 99, background: 'rgba(0,0,0,0.75)', color: '#fff' }}
+                <MoreVertical size={10} />
+              </button>
+
+              {menuFor === img.id && (
+                <div
+                  ref={menuRef}
+                  role="menu"
+                  className="absolute z-10"
+                  style={{
+                    top: TILE + 4,
+                    right: 0,
+                    minWidth: 172,
+                    background: 'var(--adm-panel)',
+                    border: '1px solid var(--adm-line)',
+                    borderRadius: 8,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.28)',
+                    padding: 4,
+                  }}
                 >
-                  <X size={9} />
-                </button>
-                <div className="flex justify-between">
-                  <button
-                    type="button"
-                    onClick={() => move(i, -1)}
-                    disabled={i === 0}
-                    aria-label={`Move ${i + 1} earlier`}
-                    className="flex items-center justify-center"
-                    style={{ width: 16, height: 16, borderRadius: 99, background: 'rgba(0,0,0,0.75)', color: '#fff', opacity: i === 0 ? 0.25 : 1 }}
-                  >
-                    <ArrowLeft size={9} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => move(i, 1)}
-                    disabled={i === images.length - 1}
-                    aria-label={`Move ${i + 1} later`}
-                    className="flex items-center justify-center"
-                    style={{ width: 16, height: 16, borderRadius: 99, background: 'rgba(0,0,0,0.75)', color: '#fff', opacity: i === images.length - 1 ? 0.25 : 1 }}
-                  >
-                    <ArrowRight size={9} />
-                  </button>
+                  {i !== 0 && img.type === 'IMAGE' && (
+                    <MenuItem icon={Star} label="Set as main image" onClick={() => setAsMain(i)} />
+                  )}
+                  {cleanConfigured && img.type === 'IMAGE' && (
+                    <MenuItem icon={Sparkles} label="Edit with AI" onClick={() => editWithAi(img.id)} />
+                  )}
+                  {i > 0 && (
+                    <MenuItem icon={ArrowLeft} label="Move left" onClick={() => { setMenuFor(null); void move(i, -1) }} />
+                  )}
+                  {i < images.length - 1 && (
+                    <MenuItem icon={ArrowRight} label="Move right" onClick={() => { setMenuFor(null); void move(i, 1) }} />
+                  )}
+                  <MenuItem
+                    icon={Trash2}
+                    label={img.type === 'YOUTUBE' ? 'Remove video' : 'Remove image'}
+                    destructive
+                    onClick={() => { setMenuFor(null); void remove(img) }}
+                  />
                 </div>
-              </div>
+              )}
             </div>
           ))}
 
@@ -445,7 +497,7 @@ export default function GalleryUploader({ productId }: { productId: string }) {
       {/* AI photo clean-up — the section itself doesn't render for a shop that
           hasn't connected the add-on, same as the credits chip in the header. */}
       {cleanConfigured && photos.length > 0 && (
-        <div className="pt-3 mt-1" style={{ borderTop: '1px solid var(--adm-line)' }}>
+        <div ref={cleanSectionRef} className="pt-3 mt-1" style={{ borderTop: '1px solid var(--adm-line)' }}>
           <button
             type="button"
             onClick={() => setShowClean((v) => !v)}
@@ -548,5 +600,36 @@ export default function GalleryUploader({ productId }: { productId: string }) {
         </div>
       )}
     </div>
+  )
+}
+
+function MenuItem({
+  icon: Icon,
+  label,
+  onClick,
+  destructive,
+}: {
+  icon: typeof Star
+  label: string
+  onClick: () => void
+  destructive?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onClick}
+      className="w-full flex items-center gap-2 px-2.5 py-2 text-left transition-colors"
+      style={{
+        borderRadius: 6,
+        fontSize: 12,
+        color: destructive ? 'var(--adm-bad)' : 'var(--adm-text)',
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--adm-inset)' }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+    >
+      <Icon size={12} />
+      {label}
+    </button>
   )
 }
