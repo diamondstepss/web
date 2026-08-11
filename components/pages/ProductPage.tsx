@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { DEFAULT_SETTINGS, type StoreSettings } from '@/lib/settings'
+import { DEFAULT_SETTINGS, shippingFor, type StoreSettings } from '@/lib/settings'
+import { SITE } from '@/data/site'
 import {
   Heart,
   Shield,
@@ -98,6 +99,18 @@ export function ProductPage({
   const [sizeError, setSizeError] = useState(false)
 
   const isVideo = (t?: MediaSlide) => t?.type === 'YOUTUBE'
+
+  // Same math CheckoutPage.tsx uses for its live quote — this is a per-unit
+  // preview before anything's in the cart, so it isn't multiplied by qty or
+  // aware of coupons the way the real checkout total is.
+  const unitPrice = incoming?.price ?? 0
+  const shipEstimate = shippingFor(unitPrice, settings)
+  const prepaidPrice = Math.round(unitPrice * (1 - SITE.prepaidDiscountPct / 100)) + shipEstimate
+  const codPrice = unitPrice + shipEstimate + SITE.codFee
+  const partialTotal = unitPrice + shipEstimate
+  const partialAdvance = Math.min(SITE.partialCodAdvance, partialTotal)
+  const partialDue = partialTotal - partialAdvance
+  const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`
 
   const handleAddToCart = () => {
     // Footwear must have a size picked; accessories have none to pick.
@@ -212,15 +225,27 @@ export function ProductPage({
                   </div>
                 )
               ) : (
-                // object-contain, not cover: admin photos come in whatever aspect
-                // ratio the phone shot them at. Cropping a tall photo to this
-                // square would slice off everything but a thin horizontal band —
-                // contain shows the whole photo, letterboxed on the dark backdrop.
-                <img
-                  src={THUMBNAILS[activeThumb]?.url ?? incoming?.image ?? ''}
-                  alt="Product"
-                  className="w-full h-full object-contain p-6 transition-transform duration-500 group-hover:scale-105"
-                />
+                // Admin photos come in whatever aspect ratio the phone shot them
+                // at, so a plain object-contain on a flat background would leave
+                // bare letterbox bars for anything non-square. A blurred, scaled
+                // copy of the same photo fills the frame behind it instead — the
+                // same trick Apple Music/Spotify use for mismatched artwork — so
+                // there's never an empty gap, whatever shape the photo is.
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={THUMBNAILS[activeThumb]?.url ?? incoming?.image ?? ''}
+                    alt=""
+                    aria-hidden="true"
+                    className="absolute inset-0 w-full h-full object-cover"
+                    style={{ filter: 'blur(28px) brightness(0.55)', transform: 'scale(1.15)' }}
+                  />
+                  <img
+                    src={THUMBNAILS[activeThumb]?.url ?? incoming?.image ?? ''}
+                    alt="Product"
+                    className="relative w-full h-full object-contain p-6 transition-transform duration-500 group-hover:scale-105"
+                  />
+                </>
               )}
 
               {/* Mobile swipe dots */}
@@ -261,14 +286,18 @@ export function ProductPage({
             <div className="mb-1">
               <div className="flex items-baseline gap-3">
                 <span className="text-3xl font-black" style={{ color: 'var(--text-primary)' }}>
-                  ₹1,499
+                  ₹{(incoming?.price ?? 0).toLocaleString('en-IN')}
                 </span>
-                <span className="text-lg line-through" style={{ color: 'var(--text-muted)' }}>
-                  ₹3,499
-                </span>
-                <span className="text-base font-black" style={{ color: 'var(--accent)' }}>
-                  57% OFF
-                </span>
+                {(incoming?.mrp ?? 0) > (incoming?.price ?? 0) && (
+                  <span className="text-lg line-through" style={{ color: 'var(--text-muted)' }}>
+                    ₹{incoming!.mrp.toLocaleString('en-IN')}
+                  </span>
+                )}
+                {(incoming?.discount ?? 0) > 0 && (
+                  <span className="text-base font-black" style={{ color: 'var(--accent)' }}>
+                    {incoming!.discount}% OFF
+                  </span>
+                )}
               </div>
               <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                 Inclusive of all taxes
@@ -467,18 +496,18 @@ export function ProductPage({
               {[
                 {
                   label: 'Pay Online',
-                  price: '₹1,424',
-                  note: 'Extra 5% off',
+                  price: inr(prepaidPrice),
+                  note: `Extra ${SITE.prepaidDiscountPct}% off`,
                   badge: 'RECOMMENDED',
                 },
                 {
                   label: 'Cash on Delivery',
-                  price: '₹1,548',
-                  note: '₹49 COD fee',
+                  price: inr(codPrice),
+                  note: `₹${SITE.codFee} COD fee`,
                 },
                 {
-                  label: 'Pay ₹300 now, ₹1,199 on delivery',
-                  price: '₹300 now',
+                  label: `Pay ${inr(partialAdvance)} now, ${inr(partialDue)} on delivery`,
+                  price: `${inr(partialAdvance)} now`,
                   note: 'Partial COD',
                 },
               ].map((opt, i) => (
@@ -522,7 +551,7 @@ export function ProductPage({
               ))}
               {payMode === 2 && (
                 <p className="mt-2 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                  ₹300 advance covers shipping and is non-refundable if the order is refused.
+                  {inr(partialAdvance)} advance covers shipping and is non-refundable if the order is refused.
                 </p>
               )}
             </div>
@@ -608,11 +637,13 @@ export function ProductPage({
       >
         <div>
           <p className="text-lg font-black" style={{ color: 'var(--text-primary)', fontFamily: 'Outfit' }}>
-            ₹1,499
+            {inr(unitPrice)}
           </p>
-          <p className="text-xs line-through" style={{ color: 'var(--text-muted)' }}>
-            ₹3,499
-          </p>
+          {(incoming?.mrp ?? 0) > unitPrice && (
+            <p className="text-xs line-through" style={{ color: 'var(--text-muted)' }}>
+              {inr(incoming!.mrp)}
+            </p>
+          )}
         </div>
         <button
           onClick={() => setSizeSheetOpen(true)}
