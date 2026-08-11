@@ -3,6 +3,7 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { priceOrder, CheckoutError, type RequestedLine, type PaymentMode } from '@/lib/server/pricing'
 import { createPaymentRequest, isInstamojoConfigured } from '@/lib/server/instamojo'
+import { restoreStock } from '@/lib/server/stock'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -18,13 +19,7 @@ async function rollbackOrder(
 ) {
   await admin.from('order_items').delete().eq('order_id', orderId)
   await admin.from('orders').delete().eq('id', orderId)
-  for (const l of lines) {
-    if (l.size) {
-      await admin.rpc('increment_stock', { p_slug: l.product_id, p_size: l.size, p_qty: l.qty })
-    } else {
-      await admin.rpc('increment_stock', { p_slug: l.product_id, p_qty: l.qty })
-    }
-  }
+  await restoreStock(admin, lines)
 }
 
 /**

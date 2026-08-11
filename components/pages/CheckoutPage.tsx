@@ -7,8 +7,9 @@ import { Loader2, ShieldCheck, Wallet, CreditCard, Banknote, Check } from 'lucid
 import PageHero from '@/components/PageHero'
 import { useCart } from '@/context/CartContext'
 import { useAuth } from '@/context/AuthContext'
-import { fetchAddresses, createAddress, fetchOrderPaymentStatus, type AddressInput } from '@/lib/api'
+import { fetchAddresses, createAddress, fetchOrderPaymentStatus, cancelOrderByNumber, type AddressInput } from '@/lib/api'
 import { Tag, X } from 'lucide-react'
+import { useConfirm } from '@/components/ConfirmDialog'
 
 import { SITE } from '@/data/site'
 import { DEFAULT_SETTINGS, shippingFor, type StoreSettings } from '@/lib/settings'
@@ -32,6 +33,7 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
   const { lines, clear } = useCart()
   const { user, profile, loading: authLoading } = useAuth()
   const router = useRouter()
+  const confirm = useConfirm()
 
   const [addresses, setAddresses] = useState<Address[]>([])
   const [addressId, setAddressId] = useState<string | null>(null)
@@ -55,6 +57,9 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
   const [awaitingOrder, setAwaitingOrder] = useState<string | null>(null)
   const [awaitingPaymentUrl, setAwaitingPaymentUrl] = useState<string | null>(null)
   const [checkingNow, setCheckingNow] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [cancelError, setCancelError] = useState<string | null>(null)
+  const [justCancelled, setJustCancelled] = useState(false)
 
   const cartPayload = lines.map((l) => ({ productId: l.productId, size: l.size, qty: l.qty }))
 
@@ -109,6 +114,33 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
       if (status === 'PAID') router.replace(`/checkout/success?order=${awaitingOrder}`)
     } finally {
       setCheckingNow(false)
+    }
+  }
+
+  const cancelAwaitingOrder = async () => {
+    if (!awaitingOrder) return
+    const ok = await confirm({
+      title: 'Give up on this payment?',
+      message: `Order ${awaitingOrder} will be cancelled and its stock released. If you already paid, don't do this — check "I've paid" instead.`,
+      confirmLabel: 'Cancel order',
+      cancelLabel: 'Keep waiting',
+    })
+    if (!ok) return
+    setCancelling(true)
+    setCancelError(null)
+    try {
+      await cancelOrderByNumber(awaitingOrder)
+      setAwaitingOrder(null)
+      setAwaitingPaymentUrl(null)
+      // The cart is already empty (cleared when the order was placed) — drop
+      // back to the "nothing to pay for" gate instead of the main form,
+      // which would otherwise render against a since-emptied cart.
+      setPlaced(false)
+      setJustCancelled(true)
+    } catch (e) {
+      setCancelError(e instanceof Error ? e.message : 'Could not cancel that order.')
+    } finally {
+      setCancelling(false)
     }
   }
 
@@ -262,6 +294,9 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
             This page updates on its own the moment payment goes through — no need to come back and refresh.
             You can close that tab any time after paying.
           </p>
+          {cancelError && (
+            <p className="text-xs mb-4" style={{ color: 'var(--danger)' }}>{cancelError}</p>
+          )}
           <div className="flex gap-3 justify-center flex-wrap">
             {awaitingPaymentUrl && (
               <button
@@ -281,6 +316,14 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
               {checkingNow ? 'Checking…' : "I've paid — check now"}
             </button>
           </div>
+          <button
+            onClick={cancelAwaitingOrder}
+            disabled={cancelling}
+            className="mt-6 text-[11px] font-black uppercase tracking-widest"
+            style={{ color: 'var(--danger)', opacity: cancelling ? 0.6 : 1, fontFamily: 'var(--font-outfit)' }}
+          >
+            {cancelling ? 'Cancelling…' : "Give up & cancel this order"}
+          </button>
         </div>
       </div>
     )
@@ -289,8 +332,18 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
   if (!lines.length && !placed) {
     return (
       <div style={{ background: 'var(--bg)' }}>
-        <PageHero eyebrow="Checkout" title="Nothing to pay for" crumbs={[{ label: 'Checkout' }]} compact />
+        <PageHero
+          eyebrow="Checkout"
+          title={justCancelled ? 'Order cancelled' : 'Nothing to pay for'}
+          crumbs={[{ label: 'Checkout' }]}
+          compact
+        />
         <div className="mx-auto max-w-[1440px] px-6 pb-24">
+          {justCancelled && (
+            <p className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>
+              That order was cancelled and its stock released. Add items to your cart to try again.
+            </p>
+          )}
           <Link
             href="/shop"
             className="inline-block px-8 py-3.5 text-[11px] font-black uppercase tracking-widest text-white"

@@ -28,9 +28,30 @@ export async function fetchOrderPaymentStatus(userId: string, orderNumber: strin
   return data?.payment_status ?? null
 }
 
+/**
+ * Routed through the server so the stock reserved at checkout is actually
+ * given back — a direct client-side status write can't call increment_stock,
+ * which is restricted to the service role.
+ */
 export async function cancelOrder(orderId: string): Promise<void> {
-  const { error } = await db().from('orders').update({ status: 'CANCELLED' }).eq('id', orderId)
-  if (error) throw error
+  await postOrderCancel({ orderId })
+}
+
+/** For checkout's "waiting for payment" screen, which only knows the order number. */
+export async function cancelOrderByNumber(orderNumber: string): Promise<void> {
+  await postOrderCancel({ orderNumber })
+}
+
+async function postOrderCancel(body: { orderId?: string; orderNumber?: string }): Promise<void> {
+  const res = await fetch('/api/orders/cancel', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}))
+    throw new Error(d.error ?? 'Could not cancel that order.')
+  }
 }
 
 // ─── PROFILE ─────────────────────────────────────────────────────────────────

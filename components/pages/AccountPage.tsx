@@ -323,8 +323,12 @@ export function AccountPage({ products = [] }: { products?: Product[] }) {
                             cancelLabel: 'Keep order',
                           })
                           if (!ok) return
-                          await cancelOrder(o.id)
-                          void load()
+                          try {
+                            await cancelOrder(o.id)
+                            void load()
+                          } catch (e) {
+                            setError(e instanceof Error ? e.message : 'Could not cancel that order.')
+                          }
                         }}
                       />
                     ))}

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { sendShippedEmail, sendDeliveredEmail, sendCancelledEmail } from '@/lib/email'
+import { restoreStock } from '@/lib/server/stock'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -58,10 +59,29 @@ export async function POST(req: NextRequest) {
     { auth: { persistSession: false } },
   )
 
-  const { error: updateError } = await admin.from('orders').update({ status }).eq('id', orderId)
+  // Excluding an order that's already CANCELLED keeps a repeat click from
+  // restoring stock a second time below.
+  const { data: updated, error: updateError } = await admin
+    .from('orders')
+    .update({ status })
+    .eq('id', orderId)
+    .neq('status', 'CANCELLED')
+    .select('id')
+    .maybeSingle()
   if (updateError) {
     console.error('[order-status] update failed', updateError)
     return NextResponse.json({ error: 'could not update that order' }, { status: 502 })
+  }
+
+  // Stock was reserved at checkout and never given back on cancellation —
+  // only reachable pre-shipment (the admin UI only offers Cancel for
+  // CONFIRMED/PACKED orders), so the goods are still on the shelf to return.
+  if (status === 'CANCELLED' && updated) {
+    const { data: items } = await admin
+      .from('order_items')
+      .select('product_id, size, qty')
+      .eq('order_id', orderId)
+    await restoreStock(admin, (items ?? []) as { product_id: string; size: string | null; qty: number }[])
   }
 
   // ── Notify ────────────────────────────────────────────────────────────────
