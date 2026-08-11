@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import Link from 'next/link'
 import { DEFAULT_SETTINGS, shippingFor, type StoreSettings } from '@/lib/settings'
 import { SITE } from '@/data/site'
@@ -100,6 +100,24 @@ export function ProductPage({
 
   const isVideo = (t?: MediaSlide) => t?.type === 'YOUTUBE'
 
+  // Amazon-style hover zoom — desktop only (lens/panel are `hidden lg:block`,
+  // and there's no touch equivalent here since mobile already gets native
+  // pinch-zoom on the image). Panel magnifies at ZOOM×; the lens on the image
+  // is sized to 1/ZOOM of the box so it visually marks what's being shown.
+  const ZOOM = 2.2
+  const imageBoxRef = useRef<HTMLDivElement>(null)
+  const [zoomActive, setZoomActive] = useState(false)
+  const [zoomPos, setZoomPos] = useState({ x: 50, y: 50 })
+  const canZoom = !isVideo(THUMBNAILS[activeThumb]) && Boolean(THUMBNAILS[activeThumb]?.url ?? incoming?.image)
+  const handleZoomMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = imageBoxRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setZoomPos({
+      x: Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100)),
+      y: Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100)),
+    })
+  }
+
   // Same math CheckoutPage.tsx uses for its live quote — this is a per-unit
   // preview before anything's in the cart, so it isn't multiplied by qty or
   // aware of coupons the way the real checkout total is.
@@ -190,10 +208,17 @@ export function ProductPage({
               ))}
             </div>
 
-            {/* Main image */}
+            {/* Main image — the outer wrapper stays position:relative and
+                unclipped so the zoom panel (a sibling, not a child) can sit
+                outside the image box's own overflow-hidden without being cut off. */}
+            <div className="flex-1 relative">
             <div
-              className="flex-1 relative overflow-hidden group"
-              style={{ aspectRatio: '1/1', background: '#111' }}
+              ref={imageBoxRef}
+              className="relative overflow-hidden group w-full"
+              style={{ aspectRatio: '1/1', background: '#111', cursor: canZoom ? 'zoom-in' : undefined }}
+              onMouseEnter={() => canZoom && setZoomActive(true)}
+              onMouseLeave={() => setZoomActive(false)}
+              onMouseMove={handleZoomMove}
             >
               {isVideo(THUMBNAILS[activeThumb]) ? (
                 // Lite facade: the poster and a play button until you ask for
@@ -268,6 +293,44 @@ export function ProductPage({
                   />
                 ))}
               </div>
+
+              {/* Lens — clipped to the image itself, marks what the panel is showing. */}
+              {zoomActive && canZoom && (
+                <div
+                  className="hidden lg:block absolute pointer-events-none"
+                  style={{
+                    left: `${zoomPos.x}%`,
+                    top: `${zoomPos.y}%`,
+                    width: `${100 / ZOOM}%`,
+                    height: `${100 / ZOOM}%`,
+                    transform: 'translate(-50%, -50%)',
+                    background: 'rgba(255,255,255,0.25)',
+                    border: '1px solid rgba(255,255,255,0.8)',
+                  }}
+                />
+              )}
+            </div>
+
+            {/* Zoom panel — a sibling of the (overflow-hidden) image box, not a
+                child of it, so it isn't clipped when it sits outside those bounds. */}
+            {zoomActive && canZoom && (
+              <div
+                className="hidden lg:block absolute z-30"
+                style={{
+                  left: 'calc(100% + 16px)',
+                  top: 0,
+                  width: '100%',
+                  aspectRatio: '1/1',
+                  backgroundColor: '#fff',
+                  backgroundImage: `url(${THUMBNAILS[activeThumb]?.url ?? incoming?.image})`,
+                  backgroundSize: `${ZOOM * 100}%`,
+                  backgroundPosition: `${zoomPos.x}% ${zoomPos.y}%`,
+                  backgroundRepeat: 'no-repeat',
+                  border: '1px solid var(--border)',
+                  boxShadow: '0 12px 40px rgba(0,0,0,0.25)',
+                }}
+              />
+            )}
             </div>
           </div>
 
