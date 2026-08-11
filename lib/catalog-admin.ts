@@ -233,6 +233,30 @@ export async function toggleActive(id: string, next: boolean): Promise<void> {
   await revalidateCatalog()
 }
 
+/**
+ * Bulk variants for the Products table's selection toolbar — one query and
+ * one revalidation per action instead of one per product, so selecting 50
+ * rows doesn't fire 50 round trips.
+ */
+export async function deleteProductMany(ids: string[]): Promise<void> {
+  await Promise.all(ids.map((id) => deleteProductFiles(id)))
+  const { error } = await db().from('products').delete().in('id', ids)
+  if (error) throw error
+  await revalidateCatalog()
+}
+
+export async function toggleFeaturedMany(ids: string[], next: boolean): Promise<void> {
+  const { error } = await db().from('products').update({ is_featured: next }).in('id', ids)
+  if (error) throw error
+  await revalidateCatalog()
+}
+
+export async function toggleActiveMany(ids: string[], next: boolean): Promise<void> {
+  const { error } = await db().from('products').update({ is_active: next }).in('id', ids)
+  if (error) throw error
+  await revalidateCatalog()
+}
+
 /** Turns "Air Max 90 White" into "air-max-90-white". */
 export function slugify(s: string): string {
   return s

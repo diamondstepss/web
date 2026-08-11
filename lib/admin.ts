@@ -55,6 +55,26 @@ export async function updateOrderStatus(id: string, status: OrderStatus): Promis
   }
 }
 
+export interface BulkOrderStatusResult {
+  updated: number
+  failed: string[]
+}
+
+/** Same move as updateOrderStatus, applied to every selected order in one request. */
+export async function bulkUpdateOrderStatus(
+  orderIds: string[],
+  status: OrderStatus,
+): Promise<BulkOrderStatusResult> {
+  const res = await fetch('/api/admin/orders/bulk-status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orderIds, status }),
+  })
+  const data = (await res.json().catch(() => ({}))) as { error?: string; updated?: number; failed?: string[] }
+  if (!res.ok) throw new Error(data.error ?? 'Could not update those orders.')
+  return { updated: data.updated ?? 0, failed: data.failed ?? [] }
+}
+
 export interface AdminStats {
   revenueToday: number
   ordersToday: number

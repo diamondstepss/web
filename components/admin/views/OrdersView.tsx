@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import { Inbox, Search , MoveHorizontal } from 'lucide-react'
-import { updateOrderStatus } from '@/lib/admin'
+import { updateOrderStatus, bulkUpdateOrderStatus } from '@/lib/admin'
 import type { OrderStatus } from '@/lib/types'
+import { useConfirm } from '@/components/ConfirmDialog'
 import {
   inr,
   Panel,
@@ -13,6 +14,14 @@ import {
   SkeletonRows,
   useAdminOrders,
 } from '@/components/admin/shared'
+
+/** Bulk targets an admin would plausibly apply to a batch at once. */
+const BULK_ACTIONS: { to: OrderStatus; label: string; danger?: boolean }[] = [
+  { to: 'PACKED', label: 'Mark packed' },
+  { to: 'SHIPPED', label: 'Mark shipped' },
+  { to: 'DELIVERED', label: 'Mark delivered' },
+  { to: 'CANCELLED', label: 'Cancel', danger: true },
+]
 
 /** Each status offers exactly one forward move, so the flow can't be skipped. */
 const NEXT_STEP: Partial<Record<OrderStatus, { to: OrderStatus; label: string; primary: boolean }>> = {
@@ -43,6 +52,9 @@ export default function OrdersView() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('ALL')
   const [q, setQ] = useState('')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const confirm = useConfirm()
 
   const advance = async (id: string, next: OrderStatus) => {
     setBusy(id)
@@ -57,6 +69,17 @@ export default function OrdersView() {
     }
   }
 
+  const cancelOne = async (id: string, orderNumber: string) => {
+    const ok = await confirm({
+      title: 'Cancel this order?',
+      message: `Order ${orderNumber} will be cancelled and its reserved stock released. This cannot be undone.`,
+      confirmLabel: 'Cancel order',
+      cancelLabel: 'Keep order',
+    })
+    if (!ok) return
+    await advance(id, 'CANCELLED')
+  }
+
   const needle = q.trim().toLowerCase()
   const shown = orders.filter((o) => {
     if (filter !== 'ALL' && o.status !== filter) return false
@@ -68,6 +91,57 @@ export default function OrdersView() {
 
   const countFor = (f: (typeof FILTERS)[number]) =>
     f === 'ALL' ? orders.length : orders.filter((o) => o.status === f).length
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const allShownSelected = shown.length > 0 && shown.every((o) => selected.has(o.id))
+  const toggleAllShown = () => {
+    setSelected((prev) => {
+      if (allShownSelected) {
+        const next = new Set(prev)
+        shown.forEach((o) => next.delete(o.id))
+        return next
+      }
+      const next = new Set(prev)
+      shown.forEach((o) => next.add(o.id))
+      return next
+    })
+  }
+
+  const runBulk = async (status: OrderStatus) => {
+    if (status === 'CANCELLED') {
+      const ok = await confirm({
+        title: `Cancel ${selected.size} order${selected.size === 1 ? '' : 's'}?`,
+        message: 'Each will be cancelled and its reserved stock released. This cannot be undone.',
+        confirmLabel: 'Cancel orders',
+        cancelLabel: 'Keep orders',
+      })
+      if (!ok) return
+    }
+    setBulkBusy(true)
+    setActionError(null)
+    try {
+      const { updated, failed } = await bulkUpdateOrderStatus([...selected], status)
+      if (failed.length) {
+        setActionError(
+          `Updated ${updated} order${updated === 1 ? '' : 's'} — ${failed.length} couldn't be changed (already at that status, shipped, or cancelled).`,
+        )
+      }
+      setSelected(new Set())
+      await reload()
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Could not update those orders.')
+    } finally {
+      setBulkBusy(false)
+    }
+  }
 
   return (
     <div>
@@ -81,7 +155,10 @@ export default function OrdersView() {
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--adm-text-3)' }} />
           <input
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => {
+              setQ(e.target.value)
+              setSelected(new Set())
+            }}
             placeholder="Order or customer"
             aria-label="Search orders"
             className="adm-input"
@@ -97,7 +174,10 @@ export default function OrdersView() {
         {FILTERS.map((f) => (
           <button
             key={f}
-            onClick={() => setFilter(f)}
+            onClick={() => {
+              setFilter(f)
+              setSelected(new Set())
+            }}
             className="adm-btn"
             style={
               filter === f
@@ -110,6 +190,36 @@ export default function OrdersView() {
           </button>
         ))}
       </div>
+
+      {selected.size > 0 && (
+        <div
+          className="flex flex-wrap items-center gap-2 mb-3.5 px-3.5 py-2.5 adm-rise adm-rise-1"
+          style={{ background: 'var(--adm-accent-soft)', border: '1px solid var(--adm-accent-line)', borderRadius: 'var(--adm-r-sm)' }}
+        >
+          <span className="text-[12px] font-semibold mr-1" style={{ color: 'var(--adm-accent)' }}>
+            {selected.size} selected
+          </span>
+          {BULK_ACTIONS.map((a) => (
+            <button
+              key={a.to}
+              onClick={() => runBulk(a.to)}
+              disabled={bulkBusy}
+              className={`adm-btn ${a.danger ? 'adm-btn-danger' : 'adm-btn-ghost'}`}
+              style={{ height: 28, padding: '0 11px' }}
+            >
+              {a.label}
+            </button>
+          ))}
+          <button
+            onClick={() => setSelected(new Set())}
+            disabled={bulkBusy}
+            className="adm-btn adm-btn-ghost"
+            style={{ height: 28, padding: '0 11px', marginLeft: 'auto' }}
+          >
+            {bulkBusy ? 'Working…' : 'Clear selection'}
+          </button>
+        </div>
+      )}
 
       <Panel className="overflow-hidden adm-rise adm-rise-2">
         {!loading && shown.length === 0 ? (
@@ -129,6 +239,14 @@ export default function OrdersView() {
             <table className="adm-table" style={{ minWidth: 900 }}>
               <thead>
                 <tr>
+                  <th style={{ width: 36 }}>
+                    <input
+                      type="checkbox"
+                      checked={allShownSelected}
+                      onChange={toggleAllShown}
+                      aria-label="Select all shown orders"
+                    />
+                  </th>
                   <th>Order</th>
                   <th>Customer</th>
                   <th>Date</th>
@@ -140,12 +258,21 @@ export default function OrdersView() {
                 </tr>
               </thead>
               <tbody>
-                {loading && <SkeletonRows cols={8} rows={6} />}
+                {loading && <SkeletonRows cols={9} rows={6} />}
                 {shown.map((o) => {
                   const due = Number(o.amount_due_on_delivery ?? 0)
                   const step = NEXT_STEP[o.status as OrderStatus]
+                  const cancellable = o.status === 'CONFIRMED' || o.status === 'PACKED'
                   return (
                     <tr key={o.id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={selected.has(o.id)}
+                          onChange={() => toggleOne(o.id)}
+                          aria-label={`Select order ${o.order_number}`}
+                        />
+                      </td>
                       <td className="font-mono font-semibold adm-num" style={{ color: 'var(--adm-accent)' }}>
                         {o.order_number}
                       </td>
@@ -168,16 +295,28 @@ export default function OrdersView() {
                         </span>
                       </td>
                       <td className="text-right">
-                        {step && (
-                          <button
-                            onClick={() => advance(o.id, step.to)}
-                            disabled={busy === o.id}
-                            className={`adm-btn ${step.primary ? 'adm-btn-primary' : 'adm-btn-ghost'}`}
-                            style={{ height: 28, padding: '0 11px' }}
-                          >
-                            {busy === o.id ? 'Saving…' : step.label}
-                          </button>
-                        )}
+                        <div className="flex gap-1.5 justify-end">
+                          {cancellable && (
+                            <button
+                              onClick={() => cancelOne(o.id, o.order_number)}
+                              disabled={busy === o.id}
+                              className="adm-btn adm-btn-ghost"
+                              style={{ height: 28, padding: '0 11px', color: 'var(--adm-bad)' }}
+                            >
+                              Cancel
+                            </button>
+                          )}
+                          {step && (
+                            <button
+                              onClick={() => advance(o.id, step.to)}
+                              disabled={busy === o.id}
+                              className={`adm-btn ${step.primary ? 'adm-btn-primary' : 'adm-btn-ghost'}`}
+                              style={{ height: 28, padding: '0 11px' }}
+                            >
+                              {busy === o.id ? 'Saving…' : step.label}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )

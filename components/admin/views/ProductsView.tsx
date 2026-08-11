@@ -12,6 +12,9 @@ import {
   deleteProduct,
   toggleFeatured,
   toggleActive,
+  deleteProductMany,
+  toggleFeaturedMany,
+  toggleActiveMany,
   type ProductSort,
 } from '@/lib/catalog-admin'
 import { useConfirm } from '@/components/ConfirmDialog'
@@ -53,6 +56,8 @@ export default function ProductsView() {
   const [sort, setSort] = useState<ProductSort>('position')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(10)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
 
   const confirm = useConfirm()
 
@@ -75,6 +80,7 @@ export default function ProductsView() {
   if (filterSignature !== prevFilterSignature) {
     setPrevFilterSignature(filterSignature)
     setPage(1)
+    setSelected(new Set())
   }
 
   // Brands, categories and the whole-catalog counts describe the catalog,
@@ -143,6 +149,50 @@ export default function ProductsView() {
     } finally {
       setBusy(null)
     }
+  }
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const allRowsSelected = rows.length > 0 && rows.every((p) => selected.has(p.id))
+  const toggleAllRows = () => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (allRowsSelected) rows.forEach((p) => next.delete(p.id))
+      else rows.forEach((p) => next.add(p.id))
+      return next
+    })
+  }
+
+  const bulkAct = async (fn: () => Promise<unknown>) => {
+    setBulkBusy(true)
+    setError(null)
+    try {
+      await fn()
+      setSelected(new Set())
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Bulk action failed.')
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
+  const bulkDelete = async () => {
+    const ids = [...selected]
+    const ok = await confirm({
+      title: `Delete ${ids.length} product${ids.length === 1 ? '' : 's'}?`,
+      message: 'Their images will be removed from the store too. This cannot be undone.',
+      confirmLabel: `Delete ${ids.length === 1 ? 'product' : 'products'}`,
+    })
+    if (!ok) return
+    await bulkAct(() => deleteProductMany(ids))
   }
 
   const categoryOptions = Object.keys(categoryNames).sort((a, b) => categoryNames[a].localeCompare(categoryNames[b]))
@@ -277,6 +327,65 @@ export default function ProductsView() {
         </div>
       )}
 
+      {selected.size > 0 && (
+        <div
+          className="flex flex-wrap items-center gap-2 mb-3.5 px-3.5 py-2.5 adm-rise adm-rise-1"
+          style={{ background: 'var(--adm-accent-soft)', border: '1px solid var(--adm-accent-line)', borderRadius: 'var(--adm-r-sm)' }}
+        >
+          <span className="text-[12px] font-semibold mr-1" style={{ color: 'var(--adm-accent)' }}>
+            {selected.size} selected
+          </span>
+          <button
+            onClick={() => bulkAct(() => toggleActiveMany([...selected], true))}
+            disabled={bulkBusy}
+            className="adm-btn adm-btn-ghost"
+            style={{ height: 28, padding: '0 11px' }}
+          >
+            Set live
+          </button>
+          <button
+            onClick={() => bulkAct(() => toggleActiveMany([...selected], false))}
+            disabled={bulkBusy}
+            className="adm-btn adm-btn-ghost"
+            style={{ height: 28, padding: '0 11px' }}
+          >
+            Set draft
+          </button>
+          <button
+            onClick={() => bulkAct(() => toggleFeaturedMany([...selected], true))}
+            disabled={bulkBusy}
+            className="adm-btn adm-btn-ghost"
+            style={{ height: 28, padding: '0 11px' }}
+          >
+            Feature
+          </button>
+          <button
+            onClick={() => bulkAct(() => toggleFeaturedMany([...selected], false))}
+            disabled={bulkBusy}
+            className="adm-btn adm-btn-ghost"
+            style={{ height: 28, padding: '0 11px' }}
+          >
+            Unfeature
+          </button>
+          <button
+            onClick={bulkDelete}
+            disabled={bulkBusy}
+            className="adm-btn adm-btn-danger"
+            style={{ height: 28, padding: '0 11px' }}
+          >
+            Delete
+          </button>
+          <button
+            onClick={() => setSelected(new Set())}
+            disabled={bulkBusy}
+            className="adm-btn adm-btn-ghost"
+            style={{ height: 28, padding: '0 11px', marginLeft: 'auto' }}
+          >
+            {bulkBusy ? 'Working…' : 'Clear selection'}
+          </button>
+        </div>
+      )}
+
       <Panel className="overflow-hidden adm-rise adm-rise-2">
         {!loading && total === 0 ? (
           <EmptyState
@@ -308,6 +417,14 @@ export default function ProductsView() {
             <table className="adm-table" style={{ minWidth: 880 }}>
               <thead>
                 <tr>
+                  <th style={{ width: 36 }}>
+                    <input
+                      type="checkbox"
+                      checked={allRowsSelected}
+                      onChange={toggleAllRows}
+                      aria-label="Select all products on this page"
+                    />
+                  </th>
                   <th style={{ width: 52 }} />
                   <th>Product</th>
                   <th className="text-right">Price</th>
@@ -321,9 +438,17 @@ export default function ProductsView() {
                 </tr>
               </thead>
               <tbody>
-                {loading && <SkeletonRows cols={10} rows={6} />}
+                {loading && <SkeletonRows cols={11} rows={6} />}
                 {!loading && rows.map((p) => (
                   <tr key={p.id} style={{ opacity: p.is_active ? 1 : 0.55 }}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(p.id)}
+                        onChange={() => toggleOne(p.id)}
+                        aria-label={`Select ${p.title}`}
+                      />
+                    </td>
                     <td>
                       <div
                         className="flex items-center justify-center overflow-hidden"

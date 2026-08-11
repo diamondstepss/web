@@ -1,14 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
-import { sendShippedEmail, sendDeliveredEmail, sendCancelledEmail } from '@/lib/email'
-import { restoreStock } from '@/lib/server/stock'
+import { applyOrderStatus, ORDER_STATUSES, type OrderStatusValue } from '@/lib/server/orderStatus'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-
-const ALLOWED = ['CONFIRMED', 'PACKED', 'SHIPPED', 'DELIVERED', 'CANCELLED'] as const
-type Status = (typeof ALLOWED)[number]
 
 /**
  * Moves an order to its next status, and tells the customer.
@@ -46,8 +42,8 @@ export async function POST(req: NextRequest) {
   }
 
   const orderId = typeof body.orderId === 'string' ? body.orderId : ''
-  const status = String(body.status ?? '') as Status
-  if (!orderId || !ALLOWED.includes(status)) {
+  const status = String(body.status ?? '') as OrderStatusValue
+  if (!orderId || !ORDER_STATUSES.includes(status)) {
     return NextResponse.json({ error: 'invalid order or status' }, { status: 400 })
   }
 
@@ -59,64 +55,11 @@ export async function POST(req: NextRequest) {
     { auth: { persistSession: false } },
   )
 
-  // Excluding an order that's already CANCELLED keeps a repeat click from
-  // restoring stock a second time below.
-  const { data: updated, error: updateError } = await admin
-    .from('orders')
-    .update({ status })
-    .eq('id', orderId)
-    .neq('status', 'CANCELLED')
-    .select('id')
-    .maybeSingle()
-  if (updateError) {
-    console.error('[order-status] update failed', updateError)
+  try {
+    const { emailed } = await applyOrderStatus(admin, orderId, status)
+    return NextResponse.json({ ok: true, status, emailed })
+  } catch (e) {
+    console.error('[order-status] update failed', e)
     return NextResponse.json({ error: 'could not update that order' }, { status: 502 })
   }
-
-  // Stock was reserved at checkout and never given back on cancellation —
-  // only reachable pre-shipment (the admin UI only offers Cancel for
-  // CONFIRMED/PACKED orders), so the goods are still on the shelf to return.
-  if (status === 'CANCELLED' && updated) {
-    const { data: items } = await admin
-      .from('order_items')
-      .select('product_id, size, qty')
-      .eq('order_id', orderId)
-    await restoreStock(admin, (items ?? []) as { product_id: string; size: string | null; qty: number }[])
-  }
-
-  // ── Notify ────────────────────────────────────────────────────────────────
-  let emailed = false
-  try {
-    const { data: order } = await admin
-      .from('orders')
-      .select(
-        'order_number, courier, awb, total, amount_paid_online, shipping_address, profiles!orders_user_id_profiles_fkey(email, full_name)',
-      )
-      .eq('id', orderId)
-      .maybeSingle()
-
-    const profileRow = order?.profiles as { email?: string; full_name?: string } | null
-    const address = order?.shipping_address as { name?: string } | null
-    const to = profileRow?.email
-    const name = profileRow?.full_name ?? address?.name ?? null
-
-    if (to && order) {
-      const common = { to, customerName: name, orderNumber: order.order_number as string }
-      if (status === 'SHIPPED') {
-        await sendShippedEmail({ ...common, courier: order.courier, awb: order.awb })
-        emailed = true
-      } else if (status === 'DELIVERED') {
-        await sendDeliveredEmail(common)
-        emailed = true
-      } else if (status === 'CANCELLED') {
-        await sendCancelledEmail({ ...common, refundAmount: Number(order.amount_paid_online ?? 0) })
-        emailed = true
-      }
-    }
-  } catch (e) {
-    // Logged, not surfaced — the status change already succeeded.
-    console.error('[order-status] notification failed', e)
-  }
-
-  return NextResponse.json({ ok: true, status, emailed })
 }
