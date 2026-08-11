@@ -3,11 +3,13 @@ import 'server-only'
 /**
  * Instamojo Payment Requests API (classic v1.1, header-key auth).
  *
- * This returns a hosted page URL, not an embedded SDK session. The client
- * opens it in Instamojo's checkout.js modal (falling back to a full-page
- * redirect if that script didn't load), and Instamojo redirects to
- * `redirectUrl` afterward either way. Confirmation still comes from the
- * webhook, never from this call succeeding or from the redirect happening.
+ * Unlike Cashfree's embedded-checkout model, this returns a hosted page URL —
+ * the browser does a full-page redirect there and Instamojo redirects back to
+ * `redirectUrl` afterward. The hosted page sends X-Frame-Options: SAMEORIGIN,
+ * so it can't be framed on our domain either — even Instamojo's own
+ * checkout.js embed just bounces back out to a full redirect for it.
+ * Confirmation still comes from the webhook, never from this call
+ * succeeding or from the redirect happening.
  */
 
 function baseUrl() {

@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import Script from 'next/script'
 import { useRouter } from 'next/navigation'
 import { Loader2, ShieldCheck, Wallet, CreditCard, Banknote, Check } from 'lucide-react'
 import PageHero from '@/components/PageHero'
@@ -16,20 +15,6 @@ import { DEFAULT_SETTINGS, shippingFor, type StoreSettings } from '@/lib/setting
 import type { Address, PaymentMode } from '@/lib/types'
 
 const inr = (n: number) => `₹${Number(n).toLocaleString('en-IN')}`
-
-// Instamojo's own embed script — opens the hosted payment page in an
-// in-page modal instead of a full-page redirect away from the site.
-interface InstamojoEmbed {
-  configure: (options: {
-    handlers: { onOpen?: () => void; onClose?: () => void; onSuccess?: () => void }
-  }) => void
-  open: (url: string) => void
-}
-declare global {
-  interface Window {
-    Instamojo?: InstamojoEmbed
-  }
-}
 
 const emptyAddressForm = (name = '', phone = ''): AddressInput => ({
   label: 'HOME',
@@ -64,24 +49,6 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
   const [couponMsg, setCouponMsg] = useState<string | null>(null)
   // Server-priced totals. The UI never computes money it might get wrong.
   const [quote, setQuote] = useState<{ total: number; shippingFee: number } | null>(null)
-  // Read inside the Instamojo handlers below, which are configured once on
-  // script load and would otherwise close over a stale, pre-submit value.
-  const pendingOrderRef = useRef<string | null>(null)
-
-  const configureInstamojo = () => {
-    window.Instamojo?.configure({
-      handlers: {
-        onClose: () => setBusy(false),
-        onSuccess: () => {
-          const order = pendingOrderRef.current
-          if (order) {
-            clear()
-            router.replace(`/checkout/success?order=${order}`)
-          }
-        },
-      },
-    })
-  }
 
   const cartPayload = lines.map((l) => ({ productId: l.productId, size: l.size, qty: l.qty }))
 
@@ -208,22 +175,16 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
         return
       }
 
-      // Open Instamojo's hosted checkout in the in-page modal so the
-      // customer never leaves the site. The order is created unpaid and the
-      // webhook confirms it later, regardless of what happens in the modal.
+      // Instamojo's hosted checkout page sends X-Frame-Options: SAMEORIGIN,
+      // so it can't be framed on our domain — it always breaks out to a
+      // full top-level redirect even through their own embed script. Mark
+      // the order placed before clearing the cart so the empty-cart view
+      // can't flash on screen during the moment before the browser
+      // actually navigates away.
       if (d.paymentUrl) {
-        if (window.Instamojo) {
-          pendingOrderRef.current = d.orderNumber
-          window.Instamojo.open(d.paymentUrl)
-        } else {
-          // Embed script blocked or not yet loaded — fall back to a
-          // full-page redirect so payment still works. Mark the order
-          // placed first so clearing the cart can't flash "nothing to pay"
-          // while the browser navigates away.
-          setPlaced(true)
-          clear()
-          window.location.href = d.paymentUrl
-        }
+        setPlaced(true)
+        clear()
+        window.location.href = d.paymentUrl
         return
       }
 
@@ -296,7 +257,6 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
 
   return (
     <div style={{ background: 'var(--bg)' }}>
-      <Script src="https://js.instamojo.com/v1/checkout.js" strategy="afterInteractive" onLoad={configureInstamojo} />
       <PageHero eyebrow="Almost yours" title="Checkout" crumbs={[{ label: 'Checkout' }]} compact />
 
       <section className="mx-auto max-w-[1440px] px-6 pb-24">
