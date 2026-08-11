@@ -212,10 +212,14 @@ export function ProductPage({
                   </div>
                 )
               ) : (
+                // object-contain, not cover: admin photos come in whatever aspect
+                // ratio the phone shot them at. Cropping a tall photo to this
+                // square would slice off everything but a thin horizontal band —
+                // contain shows the whole photo, letterboxed on the dark backdrop.
                 <img
                   src={THUMBNAILS[activeThumb]?.url ?? incoming?.image ?? ''}
                   alt="Product"
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  className="w-full h-full object-contain p-6 transition-transform duration-500 group-hover:scale-105"
                 />
               )}
 
