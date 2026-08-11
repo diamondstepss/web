@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { DEFAULT_SETTINGS, shippingFor, type StoreSettings } from '@/lib/settings'
 import { SITE } from '@/data/site'
 import {
@@ -61,6 +62,7 @@ export function ProductPage({
         ? [{ type: 'IMAGE', url: incoming.image, poster: null }]
         : []
   const { add } = useCart()
+  const router = useRouter()
   // Footwear must have a size chosen; accessories have none to choose.
   const needsSize = Boolean(incoming?.sizes?.length)
   const [activeThumb, setActiveThumb] = useState(0)
@@ -148,6 +150,18 @@ export function ProductPage({
     setSizeError(false)
     setAdded(true)
     setTimeout(() => setAdded(false), 2000)
+  }
+
+  const handleBuyNow = () => {
+    if (needsSize && selectedSize === null) {
+      setSizeError(true)
+      return
+    }
+    if (!incoming) return
+    const cappedQty = knownStock !== undefined ? Math.min(qty, knownStock) : qty
+    add(incoming, selectedSize !== null ? String(selectedSize) : null, cappedQty)
+    setSizeError(false)
+    router.push('/checkout')
   }
 
   return (
@@ -494,8 +508,8 @@ export function ProductPage({
               >
                 {added ? '✓ ADDED TO CART' : 'ADD TO CART'}
               </button>
-              <Link
-                href="/checkout"
+              <button
+                onClick={handleBuyNow}
                 className="flex-1 py-3.5 text-sm font-black uppercase tracking-wider text-center border transition-colors duration-200"
                 style={{
                   borderColor: 'var(--border)',
@@ -504,7 +518,7 @@ export function ProductPage({
                 }}
               >
                 BUY NOW
-              </Link>
+              </button>
               <button
                 onClick={() => setWishlisted(!wishlisted)}
                 className="w-12 h-12 flex items-center justify-center border transition-colors duration-200"
