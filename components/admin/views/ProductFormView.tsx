@@ -40,8 +40,12 @@ export default function ProductFormView({ productId }: { productId?: string }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // No `image` field here on purpose: the gallery uploader (lib/media.ts) is
+  // the sole owner of products.image, syncing it as photos are added or
+  // removed. A stale copy in this form's local state would silently
+  // overwrite that on every unrelated save (title, price, sizes...).
   const [f, setF] = useState({
-    title: '', brand: '', slug: '', price: '', mrp: '', image: '',
+    title: '', brand: '', slug: '', price: '', mrp: '',
     stock: '10', description: '', is_featured: false, is_active: true,
   })
 
@@ -63,7 +67,7 @@ export default function ProductFormView({ productId }: { productId?: string }) {
         setProduct(p)
         setF({
           title: p.title ?? '', brand: p.brand ?? '', slug: p.slug ?? '',
-          price: String(p.price ?? ''), mrp: String(p.mrp ?? ''), image: p.image ?? '',
+          price: String(p.price ?? ''), mrp: String(p.mrp ?? ''),
           stock: String(p.stock ?? 0),
           description: p.description ?? '',
           is_featured: p.is_featured ?? false, is_active: p.is_active ?? true,
@@ -118,7 +122,6 @@ export default function ProductFormView({ productId }: { productId?: string }) {
       slug: f.slug.trim() || slugify(`${f.brand} ${f.title}`),
       price: Number(f.price),
       mrp: Number(f.mrp),
-      image: f.image.trim() || null,
       // For footwear this is a placeholder — saveSizeStock below triggers the
       // database to recompute it as the real sum a moment later. Sending the
       // honest running total rather than the stale field just means nothing
