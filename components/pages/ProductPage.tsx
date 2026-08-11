@@ -248,7 +248,7 @@ export function ProductPage({
                   <img
                     src={THUMBNAILS[activeThumb]?.url ?? incoming?.image ?? ''}
                     alt="Product"
-                    className="absolute inset-0 w-full h-full object-contain p-6 transition-transform duration-500 group-hover:scale-105"
+                    className="absolute inset-0 w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
                   />
                 </>
               )}
