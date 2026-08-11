@@ -125,6 +125,16 @@ export function ProductPage({
     })
   }
 
+  // Direction of the last image change, for the slide-in animation below —
+  // set by every path that changes activeThumb (arrows, dots, thumbnail
+  // clicks, swipe/drag), not just the gesture ones.
+  const [thumbDirection, setThumbDirection] = useState<1 | -1>(1)
+  const goToThumb = (i: number) => {
+    setThumbDirection(i >= activeThumb ? 1 : -1)
+    setActiveThumb(i)
+    setPlaying(false)
+  }
+
   // Swipe (touch) or click-drag (mouse) to change the image — the dots below
   // were clickable already, but the image itself only responded to the
   // thumbnail rail (desktop-only) or those dots, not a drag on the photo
@@ -136,8 +146,7 @@ export function ProductPage({
     if (THUMBNAILS.length < 2) return
     // A shallow or mostly-vertical drag is a scroll, not a swipe.
     if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy)) return
-    setActiveThumb((i) => Math.min(THUMBNAILS.length - 1, Math.max(0, i + (dx < 0 ? 1 : -1))))
-    setPlaying(false)
+    goToThumb(Math.min(THUMBNAILS.length - 1, Math.max(0, activeThumb + (dx < 0 ? 1 : -1))))
   }
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     const t = e.touches[0]
@@ -151,6 +160,12 @@ export function ProductPage({
     applySwipeDelta(t.clientX - start.x, t.clientY - start.y)
   }
   const handleDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Without this, mousedown-and-drag on an <img> starts the browser's own
+    // native "drag this image out" gesture instead of our click-drag swipe —
+    // the native drag hijacks the pointer, so our onMouseUp below either
+    // never fires or fires with a stale position. draggable={false} on the
+    // <img> tags stops that; this is the same guard at the container level.
+    e.preventDefault()
     dragStartRef.current = { x: e.clientX, y: e.clientY }
   }
   const handleDragEnd = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -235,7 +250,7 @@ export function ProductPage({
               {THUMBNAILS.map((t, i) => (
                 <button
                   key={i}
-                  onClick={() => { setActiveThumb(i); setPlaying(false) }}
+                  onClick={() => goToThumb(i)}
                   className="relative w-20 h-20 overflow-hidden shrink-0 border-2 transition-colors duration-200"
                   style={{
                     borderColor: activeThumb === i ? 'var(--accent)' : 'var(--border)',
@@ -298,6 +313,7 @@ export function ProductPage({
                     <img
                       src={THUMBNAILS[activeThumb]?.poster ?? ''}
                       alt=""
+                      draggable={false}
                       className="w-full h-full object-cover opacity-50 absolute inset-0"
                     />
                     <button
@@ -318,12 +334,20 @@ export function ProductPage({
                 // copy of the same photo fills the frame behind it instead — the
                 // same trick Apple Music/Spotify use for mismatched artwork — so
                 // there's never an empty gap, whatever shape the photo is.
-                <>
+                //
+                // Keyed on activeThumb so switching images (arrow, dot, swipe,
+                // thumbnail) replays the slide-in animation instead of just
+                // snapping to the new photo.
+                <div
+                  key={activeThumb}
+                  className={`absolute inset-0 ${thumbDirection === 1 ? 'gallery-in-next' : 'gallery-in-prev'}`}
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={THUMBNAILS[activeThumb]?.url ?? incoming?.image ?? ''}
                     alt=""
                     aria-hidden="true"
+                    draggable={false}
                     className="absolute inset-0 w-full h-full object-cover"
                     style={{ filter: 'blur(30px)', transform: 'scale(1.15)', opacity: 0.9 }}
                   />
@@ -331,9 +355,10 @@ export function ProductPage({
                   <img
                     src={THUMBNAILS[activeThumb]?.url ?? incoming?.image ?? ''}
                     alt="Product"
+                    draggable={false}
                     className="absolute inset-0 w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
                   />
-                </>
+                </div>
               )}
 
               {/* Prev/next arrows — the click-drag and swipe gestures aren't
@@ -344,7 +369,7 @@ export function ProductPage({
                   {activeThumb > 0 && (
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); setActiveThumb((i) => i - 1); setPlaying(false) }}
+                      onClick={(e) => { e.stopPropagation(); goToThumb(activeThumb - 1) }}
                       className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 flex items-center justify-center rounded-full text-white transition-colors"
                       style={{ background: 'rgba(0,0,0,0.45)' }}
                       aria-label="Previous image"
@@ -355,7 +380,7 @@ export function ProductPage({
                   {activeThumb < THUMBNAILS.length - 1 && (
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); setActiveThumb((i) => i + 1); setPlaying(false) }}
+                      onClick={(e) => { e.stopPropagation(); goToThumb(activeThumb + 1) }}
                       className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 flex items-center justify-center rounded-full text-white transition-colors"
                       style={{ background: 'rgba(0,0,0,0.45)' }}
                       aria-label="Next image"
@@ -368,16 +393,21 @@ export function ProductPage({
 
               {/* Position dots — shown at every width now, not just mobile,
                   as a persistent hint that there's more than one photo and
-                  that the arrows/drag/swipe above do something. */}
+                  that the arrows/drag/swipe above do something. A dark pill
+                  backdrop keeps them visible over light product photos —
+                  white-on-white was invisible without it. */}
               {THUMBNAILS.length > 1 && (
-                <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
+                <div
+                  className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-2.5 py-1.5"
+                  style={{ background: 'rgba(0,0,0,0.4)', borderRadius: 99 }}
+                >
                   {THUMBNAILS.map((_, i) => (
                     <button
                       key={i}
-                      onClick={() => { setActiveThumb(i); setPlaying(false) }}
-                      className="w-1.5 h-1.5 rounded-full transition-all"
+                      onClick={() => goToThumb(i)}
+                      className="h-1.5 rounded-full transition-all"
                       style={{
-                        background: activeThumb === i ? '#fff' : 'rgba(255,255,255,0.4)',
+                        background: activeThumb === i ? '#fff' : 'rgba(255,255,255,0.5)',
                         width: activeThumb === i ? 16 : 6,
                       }}
                       aria-label={`Image ${i + 1}`}
