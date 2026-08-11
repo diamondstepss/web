@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Upload, Loader2, Star, Play, ArrowLeft, ArrowRight, Trash2, MoreVertical, Sparkles } from 'lucide-react'
+import { Upload, Loader2, Star, Play, ArrowLeft, ArrowRight, Trash2, MoreVertical, Sparkles, Crop } from 'lucide-react'
 import {
   fetchGallery,
   uploadImage,
   deleteImage,
   reorderGallery,
+  replaceImage,
   addVideo,
   UploadError,
   MAX_IMAGES,
@@ -14,6 +15,7 @@ import {
 } from '@/lib/media'
 import { useConfirm } from '@/components/ConfirmDialog'
 import { AI_CREDITS_EVENT } from './AiDescriptionButton'
+import { ImageCropModal } from './ImageCropModal'
 
 interface PhotoPreset {
   id: string
@@ -251,6 +253,46 @@ export default function GalleryUploader({ productId }: { productId: string }) {
     requestAnimationFrame(() => cleanSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))
   }
 
+  // "Crop" on an already-uploaded photo: fetch it back into a File so the
+  // same modal category/collection tiles use can reframe it, then swap the
+  // gallery row's url in place — square, matching what the product page's
+  // image viewer actually shows edge-to-edge with no letterboxing at all.
+  const [cropTarget, setCropTarget] = useState<GalleryImage | null>(null)
+  const [cropFile, setCropFile] = useState<File | null>(null)
+  const [cropLoading, setCropLoading] = useState(false)
+  const startCrop = async (img: GalleryImage) => {
+    setMenuFor(null)
+    setCropTarget(img)
+    setCropLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(img.url)
+      if (!res.ok) throw new Error()
+      const blob = await res.blob()
+      setCropFile(new File([blob], 'photo.jpg', { type: blob.type || 'image/jpeg' }))
+    } catch {
+      setError('Could not load that photo to crop.')
+      setCropTarget(null)
+    } finally {
+      setCropLoading(false)
+    }
+  }
+  const onCropped = async (blob: Blob) => {
+    if (!cropTarget) return
+    const target = cropTarget
+    setCropFile(null)
+    setCropTarget(null)
+    setBusy(true)
+    try {
+      await replaceImage(target, blob, images[0]?.id === target.id)
+      await load()
+    } catch (e) {
+      setError(e instanceof UploadError ? e.message : 'Could not save that crop.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const remove = async (img: GalleryImage) => {
     const isMain = images[0]?.id === img.id
     const ok = await confirm({
@@ -275,6 +317,15 @@ export default function GalleryUploader({ productId }: { productId: string }) {
 
   return (
     <div className="adm-panel p-4">
+      {cropFile && (
+        <ImageCropModal
+          file={cropFile}
+          aspect={1}
+          onCancel={() => { setCropFile(null); setCropTarget(null) }}
+          onCropped={onCropped}
+        />
+      )}
+
       <div className="flex items-center justify-between mb-3">
         <p className="adm-eyebrow">Gallery</p>
         <span
@@ -381,6 +432,14 @@ export default function GalleryUploader({ productId }: { productId: string }) {
                   )}
                   {cleanConfigured && img.type === 'IMAGE' && (
                     <MenuItem icon={Sparkles} label="Edit with AI" onClick={() => editWithAi(img.id)} />
+                  )}
+                  {img.type === 'IMAGE' && (
+                    <MenuItem
+                      icon={cropLoading && cropTarget?.id === img.id ? Loader2 : Crop}
+                      label="Crop"
+                      disabled={cropLoading}
+                      onClick={() => void startCrop(img)}
+                    />
                   )}
                   {i > 0 && (
                     <MenuItem icon={ArrowLeft} label="Move left" onClick={() => { setMenuFor(null); void move(i, -1) }} />
@@ -608,27 +667,32 @@ function MenuItem({
   label,
   onClick,
   destructive,
+  disabled,
 }: {
   icon: typeof Star
   label: string
   onClick: () => void
   destructive?: boolean
+  disabled?: boolean
 }) {
   return (
     <button
       type="button"
       role="menuitem"
       onClick={onClick}
+      disabled={disabled}
       className="w-full flex items-center gap-2 px-2.5 py-2 text-left transition-colors"
       style={{
         borderRadius: 6,
         fontSize: 12,
         color: destructive ? 'var(--adm-bad)' : 'var(--adm-text)',
+        opacity: disabled ? 0.5 : 1,
+        cursor: disabled ? 'default' : 'pointer',
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--adm-inset)' }}
+      onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.background = 'var(--adm-inset)' }}
       onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
     >
-      <Icon size={12} />
+      {Icon === Loader2 ? <Icon size={12} className="animate-spin" /> : <Icon size={12} />}
       {label}
     </button>
   )

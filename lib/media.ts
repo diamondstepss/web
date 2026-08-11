@@ -140,6 +140,43 @@ export async function deleteImage(image: GalleryImage): Promise<void> {
 }
 
 /**
+ * Swaps an existing gallery photo's file for a cropped version, keeping its
+ * position (and "main image" status) exactly where it was — a crop reframes
+ * a photo, it doesn't reorder the gallery.
+ *
+ * The old file is left in storage rather than deleted here, same call as the
+ * AI clean-up route: deleting inline is one more way this can fail after the
+ * new file already uploaded, and the Media page's orphan scan exists for
+ * exactly this leftover.
+ */
+export async function replaceImage(image: GalleryImage, blob: Blob, isMain: boolean): Promise<string> {
+  const path = `${image.product_id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-cropped.jpg`
+
+  const { error: upErr } = await db().storage.from(BUCKET).upload(path, blob, {
+    contentType: 'image/jpeg',
+    cacheControl: '31536000',
+    upsert: false,
+  })
+  if (upErr) throw new UploadError(upErr.message)
+
+  const {
+    data: { publicUrl },
+  } = db().storage.from(BUCKET).getPublicUrl(path)
+
+  const { error } = await db().from('product_media').update({ url: publicUrl }).eq('id', image.id)
+  if (error) {
+    await db().storage.from(BUCKET).remove([path])
+    throw new UploadError(error.message)
+  }
+
+  if (isMain) {
+    await db().from('products').update({ image: publicUrl }).eq('id', image.product_id)
+  }
+
+  return publicUrl
+}
+
+/**
  * Removes every uploaded file belonging to a product.
  *
  * Deleting a product cascades its `product_media` rows, but a cascade knows
