@@ -4,16 +4,19 @@ import { DEFAULT_SETTINGS } from '@/lib/settings'
 
 export default function AnnouncementBar({
   freeShippingOver = DEFAULT_SETTINGS.freeShippingOver,
+  codEnabled = DEFAULT_SETTINGS.codEnabled,
 }: {
   freeShippingOver?: number
+  codEnabled?: boolean
 }) {
+  const line = [
+    `FREE SHIPPING OVER ₹${freeShippingOver.toLocaleString('en-IN')}`,
+    ...(codEnabled ? ['COD AVAILABLE'] : []),
+    '7-DAY EASY RETURNS',
+  ].join(' · ')
   const text =
     // Repeated so the marquee has enough width to scroll seamlessly.
-    Array(3)
-      .fill(
-        `FREE SHIPPING OVER ₹${freeShippingOver.toLocaleString('en-IN')} · COD AVAILABLE · 7-DAY EASY RETURNS · `,
-      )
-      .join('')
+    Array(3).fill(`${line} · `).join('')
 
   return (
     <div

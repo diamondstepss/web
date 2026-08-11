@@ -13,10 +13,10 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
   const settings = await getStoreSettings()
   return (
     <>
-      <AnnouncementBar freeShippingOver={settings.freeShippingOver} />
+      <AnnouncementBar freeShippingOver={settings.freeShippingOver} codEnabled={settings.codEnabled} />
       <Header />
       <main>{children}</main>
-      <Footer />
+      <Footer codEnabled={settings.codEnabled} />
     </>
   )
 }

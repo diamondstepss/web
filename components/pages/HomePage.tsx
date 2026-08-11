@@ -167,7 +167,9 @@ export function HomePage({
                 >
                   {slide.headline}
                 </h1>
-                <p className="text-base md:text-lg text-white/70 mb-8 max-w-sm">{slide.sub}</p>
+                <p className="text-base md:text-lg text-white/70 mb-8 max-w-sm">
+                  {settings.codEnabled ? slide.sub : slide.sub.replace(/\s*COD available on all orders\.?/, '')}
+                </p>
                 <div className="flex gap-3 flex-wrap">
                   <Link
                     href="/product-category/new-arrivals"
@@ -233,7 +235,7 @@ export function HomePage({
                 { icon: Shield, label: '100% Genuine' },
                 { icon: Truck, label: `Free Shipping over ₹${settings.freeShippingOver.toLocaleString('en-IN')}` },
                 { icon: RefreshCw, label: '7-Day Easy Returns' },
-                { icon: CreditCard, label: 'COD Available' },
+                ...(settings.codEnabled ? [{ icon: CreditCard, label: 'COD Available' }] : []),
               ].map(({ icon: Icon, label }) => (
                 <div
                   key={label}

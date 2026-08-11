@@ -113,8 +113,13 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
   }, [user])
 
   // Prefill the inline form once the profile arrives, without clobbering typing.
+  // profile loads asynchronously after mount, so there's no render-time value
+  // to derive this from — syncing an external async value into editable local
+  // state like this is one of the cases React's own effects docs call out as
+  // legitimate, despite the lint rule's default skepticism of setState-in-effect.
   useEffect(() => {
     if (!profile) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setAddressForm((f) => ({ ...f, name: f.name || profile.full_name || '', phone: f.phone || profile.phone || '' }))
   }, [profile])
 
@@ -215,6 +220,9 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
     )
   }
 
+  // Server-side, priceOrder() already rejects a mode the shop has switched
+  // off — this just keeps the option from ever appearing clickable in the
+  // first place instead of failing only once the customer tries to submit.
   const MODES: { key: PaymentMode; label: string; sub: string; icon: typeof Wallet; amount: number }[] = [
     {
       key: 'PREPAID',
@@ -223,20 +231,24 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
       icon: CreditCard,
       amount: prepaidEstimate,
     },
-    {
-      key: 'PARTIAL_COD',
-      label: `Pay ₹${SITE.partialCodAdvance} now, rest on delivery`,
-      sub: 'Advance covers shipping · non-refundable if refused',
-      icon: Wallet,
-      amount: SITE.partialCodAdvance,
-    },
-    {
-      key: 'COD',
-      label: 'Cash on delivery',
-      sub: `₹${SITE.codFee} handling fee`,
-      icon: Banknote,
-      amount: codEstimate,
-    },
+    ...(settings.partialCodEnabled
+      ? [{
+          key: 'PARTIAL_COD' as const,
+          label: `Pay ₹${SITE.partialCodAdvance} now, rest on delivery`,
+          sub: 'Advance covers shipping · non-refundable if refused',
+          icon: Wallet,
+          amount: SITE.partialCodAdvance,
+        }]
+      : []),
+    ...(settings.codEnabled
+      ? [{
+          key: 'COD' as const,
+          label: 'Cash on delivery',
+          sub: `₹${SITE.codFee} handling fee`,
+          icon: Banknote,
+          amount: codEstimate,
+        }]
+      : []),
   ]
 
   return (

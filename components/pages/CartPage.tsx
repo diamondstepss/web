@@ -229,7 +229,7 @@ export function CartPage({
               </Link>
 
               <p className="flex items-center justify-center gap-1.5 text-[11px] mt-4" style={{ color: 'var(--text-muted)' }}>
-                <ShieldCheck size={13} style={{ color: 'var(--success)' }} /> Secure checkout · COD available
+                <ShieldCheck size={13} style={{ color: 'var(--success)' }} /> Secure checkout{settings.codEnabled ? ' · COD available' : ''}
               </p>
             </div>
           </aside>

@@ -5,9 +5,11 @@ import { Send, Loader2, Check } from 'lucide-react'
 import { useState } from 'react'
 import { SITE } from '@/data/site'
 import { InstagramIcon, FacebookIcon, WhatsAppIcon, GoogleMapsIcon } from '@/components/SocialIcons'
-import { PAYMENT_MARKS } from '@/components/PaymentIcons'
+import { PAYMENT_MARKS, CodMark } from '@/components/PaymentIcons'
+import { DEFAULT_SETTINGS } from '@/lib/settings'
 
-export default function Footer() {
+export default function Footer({ codEnabled = DEFAULT_SETTINGS.codEnabled }: { codEnabled?: boolean }) {
+  const paymentMarks = codEnabled ? PAYMENT_MARKS : PAYMENT_MARKS.filter((Mark) => Mark !== CodMark)
   const [email, setEmail] = useState('')
   const [state, setState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle')
   const [note, setNote] = useState('')
@@ -339,7 +341,7 @@ export default function Footer() {
             © 2026 Diamond Stepss. All rights reserved.
           </p>
           <div className="flex items-center gap-2 flex-wrap justify-center">
-            {PAYMENT_MARKS.map((Mark, i) => (
+            {paymentMarks.map((Mark, i) => (
               <Mark key={i} />
             ))}
           </div>

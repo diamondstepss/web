@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 import ProductCard from '@/components/ProductCard'
 
-import type { Product } from '@/lib/types'
+import type { Product, PaymentMode } from '@/lib/types'
 import type { MediaSlide } from '@/lib/catalog'
 import { useCart } from '@/context/CartContext'
 import SizeGuideModal from '@/components/SizeGuideModal'
@@ -92,7 +92,10 @@ export function ProductPage({
       ? sizeStockOf(selectedSize)
       : undefined
     : incoming?.stock
-  const [payMode, setPayMode] = useState(2) // 0=online,1=cod,2=partial
+  // Keyed by mode, not array index — the options below get filtered by which
+  // payment methods the shop actually has enabled, so an index would shift
+  // out from under whichever one was selected.
+  const [payMode, setPayMode] = useState<PaymentMode>(settings.partialCodEnabled ? 'PARTIAL_COD' : 'PREPAID')
   const [wishlisted, setWishlisted] = useState(false)
   const [sizeSheetOpen, setSizeSheetOpen] = useState(false)
   const [added, setAdded] = useState(false)
@@ -536,7 +539,7 @@ export function ProductPage({
               <ul className="space-y-2">
                 {[
                   [Truck, `Free shipping on orders over ₹${settings.freeShippingOver.toLocaleString('en-IN')}`],
-                  [Banknote, 'Cash on delivery available across India'],
+                  ...(settings.codEnabled ? [[Banknote, 'Cash on delivery available across India']] : []),
                   [RotateCcw, '7-day easy returns'],
                 ].map(([Icon, label]) => {
                   const I = Icon as typeof Truck
@@ -563,32 +566,39 @@ export function ProductPage({
               </p>
               {[
                 {
+                  key: 'PREPAID' as const,
                   label: 'Pay Online',
                   price: inr(prepaidPrice),
                   note: `Extra ${SITE.prepaidDiscountPct}% off`,
                   badge: 'RECOMMENDED',
                 },
-                {
-                  label: 'Cash on Delivery',
-                  price: inr(codPrice),
-                  note: `₹${SITE.codFee} COD fee`,
-                },
-                {
-                  label: `Pay ${inr(partialAdvance)} now, ${inr(partialDue)} on delivery`,
-                  price: `${inr(partialAdvance)} now`,
-                  note: 'Partial COD',
-                },
-              ].map((opt, i) => (
+                ...(settings.codEnabled
+                  ? [{
+                      key: 'COD' as const,
+                      label: 'Cash on Delivery',
+                      price: inr(codPrice),
+                      note: `₹${SITE.codFee} COD fee`,
+                    }]
+                  : []),
+                ...(settings.partialCodEnabled
+                  ? [{
+                      key: 'PARTIAL_COD' as const,
+                      label: `Pay ${inr(partialAdvance)} now, ${inr(partialDue)} on delivery`,
+                      price: `${inr(partialAdvance)} now`,
+                      note: 'Partial COD',
+                    }]
+                  : []),
+              ].map((opt) => (
                 <label
-                  key={i}
+                  key={opt.key}
                   className="flex items-start gap-3 py-3 cursor-pointer border-b last:border-b-0"
                   style={{ borderColor: 'var(--border)' }}
                 >
                   <input
                     type="radio"
                     name="paymode"
-                    checked={payMode === i}
-                    onChange={() => setPayMode(i)}
+                    checked={payMode === opt.key}
+                    onChange={() => setPayMode(opt.key)}
                     className="mt-0.5"
                     style={{ accentColor: 'var(--accent)' }}
                   />
@@ -617,7 +627,7 @@ export function ProductPage({
                   </div>
                 </label>
               ))}
-              {payMode === 2 && (
+              {payMode === 'PARTIAL_COD' && (
                 <p className="mt-2 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                   {inr(partialAdvance)} advance covers shipping and is non-refundable if the order is refused.
                 </p>
