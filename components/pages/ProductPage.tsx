@@ -123,6 +123,29 @@ export function ProductPage({
     })
   }
 
+  // Swipe to change the image on touch devices — the dots below were
+  // clickable already, but the image itself only responded to the thumbnail
+  // rail (desktop-only) or those dots, not a drag on the photo itself, which
+  // is the gesture anyone on a phone actually reaches for first.
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null)
+  const SWIPE_THRESHOLD = 40
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    const t = e.touches[0]
+    touchStartRef.current = { x: t.clientX, y: t.clientY }
+  }
+  const handleTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    const start = touchStartRef.current
+    touchStartRef.current = null
+    if (!start || THUMBNAILS.length < 2) return
+    const t = e.changedTouches[0]
+    const dx = t.clientX - start.x
+    const dy = t.clientY - start.y
+    // A shallow or mostly-vertical drag is a scroll, not a swipe.
+    if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy)) return
+    setActiveThumb((i) => Math.min(THUMBNAILS.length - 1, Math.max(0, i + (dx < 0 ? 1 : -1))))
+    setPlaying(false)
+  }
+
   // Same math CheckoutPage.tsx uses for its live quote — this is a per-unit
   // preview before anything's in the cart, so it isn't multiplied by qty or
   // aware of coupons the way the real checkout total is.
@@ -236,6 +259,8 @@ export function ProductPage({
               onMouseEnter={() => canZoom && setZoomActive(true)}
               onMouseLeave={() => setZoomActive(false)}
               onMouseMove={handleZoomMove}
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
             >
               {isVideo(THUMBNAILS[activeThumb]) ? (
                 // Lite facade: the poster and a play button until you ask for
