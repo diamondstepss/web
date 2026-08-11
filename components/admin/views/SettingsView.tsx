@@ -73,7 +73,7 @@ export default function SettingsView({
 }: {
   integrations: Integration[]
   webhookUrl: string
-  environment: { cashfreeMode: string; siteUrl: string | null; nodeEnv?: string }
+  environment: { instamojoMode: string; siteUrl: string | null; nodeEnv?: string }
 }) {
   const [copied, setCopied] = useState(false)
   const incomplete = integrations.filter((i) => i.status === 'INCOMPLETE')
@@ -180,16 +180,16 @@ export default function SettingsView({
       )}
 
       <Panel className="p-5 mb-3.5 adm-rise adm-rise-4">
-        <Eyebrow className="mb-1.5">Cashfree webhook</Eyebrow>
+        <Eyebrow className="mb-1.5">Instamojo webhook</Eyebrow>
         <p className="text-[12px] mb-3.5 max-w-2xl leading-relaxed" style={{ color: 'var(--adm-text-2)' }}>
-          Paste this into the Cashfree dashboard. An order is only ever marked paid by this webhook — never by the
+          Paste this into the Instamojo dashboard. An order is only ever marked paid by this webhook — never by the
           browser redirect, which can be forged or simply never arrive.
         </p>
         <div className="flex gap-2 flex-wrap">
           <input
             readOnly
             value={webhookUrl}
-            aria-label="Cashfree webhook URL"
+            aria-label="Instamojo webhook URL"
             onFocus={(e) => e.currentTarget.select()}
             className="adm-input font-mono flex-1"
             style={{ minWidth: 240, fontSize: 12 }}
@@ -205,10 +205,10 @@ export default function SettingsView({
         <Eyebrow className="mb-4">Environment</Eyebrow>
         <dl className="grid sm:grid-cols-3 gap-4 text-[12px]">
           <div>
-            <dt style={{ color: 'var(--adm-text-3)' }}>Cashfree mode</dt>
+            <dt style={{ color: 'var(--adm-text-3)' }}>Instamojo mode</dt>
             <dd className="mt-1.5">
-              <span className={`adm-badge ${environment.cashfreeMode === 'production' ? 'adm-badge-ok' : 'adm-badge-warn'}`}>
-                {environment.cashfreeMode}
+              <span className={`adm-badge ${environment.instamojoMode === 'production' ? 'adm-badge-ok' : 'adm-badge-warn'}`}>
+                {environment.instamojoMode}
               </span>
             </dd>
           </div>

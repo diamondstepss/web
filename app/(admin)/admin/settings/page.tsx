@@ -17,7 +17,7 @@ export default function Page() {
   return (
     <SettingsView
       integrations={getIntegrations()}
-      webhookUrl={getWebhookUrls().cashfree}
+      webhookUrl={getWebhookUrls().instamojo}
       environment={getEnvironment()}
     />
   )

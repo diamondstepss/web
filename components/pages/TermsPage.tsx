@@ -43,7 +43,7 @@ export function TermsPage() {
           items={[
             <>All prices are in Indian Rupees and are the final amount payable — no tax is added at checkout.</>,
             <>
-              Payments are processed by Cashfree. We accept UPI, credit and debit cards, net banking and wallets, as
+              Payments are processed by Instamojo. We accept UPI, credit and debit cards, net banking and wallets, as
               well as Cash on Delivery.
             </>,
             <>

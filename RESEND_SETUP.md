@@ -77,7 +77,7 @@ To check how any email looks without sending one, run the dev server and open **
 | Confirm signup / email change / invite | Supabase (Resend SMTP) | Auth flows |
 | Welcome | App (`sendWelcomeEmail`) | First sign-in after signup, via `POST /api/account/welcome` |
 | Newsletter confirmation | App (`sendNewsletterWelcome`) | Footer signup |
-| Order confirmation | App (`sendOrderConfirmation`) | Cashfree webhook |
+| Order confirmation | App (`sendOrderConfirmation`) | Instamojo webhook |
 | Shipped | App (`sendShippedEmail`) | Admin sets an order to SHIPPED |
 | Delivered | App (`sendDeliveredEmail`) | Admin sets an order to DELIVERED |
 | Cancelled | App (`sendCancelledEmail`) | Admin sets an order to CANCELLED |

@@ -5,9 +5,6 @@ settings:
   excludeLinksFromLockfile: false
 
 dependencies:
-  '@cashfreepayments/cashfree-js':
-    specifier: ^1.0.7
-    version: 1.0.7
   '@supabase/ssr':
     specifier: ^0.12.3
     version: 0.12.3(@supabase/supabase-js@2.110.8)
@@ -203,10 +200,6 @@ packages:
     dependencies:
       '@babel/helper-string-parser': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
-
-  /@cashfreepayments/cashfree-js@1.0.7:
-    resolution: {integrity: sha512-WRhjGdUgkPdWbq0YoMsi6hRqyT4XTIGUMNnATQsfz0GIDFP2sjtVon/kcihDVtO6pzEZrjded62Do9xK2VkjPQ==}
-    dev: false
 
   /@emnapi/core@1.10.0:
     resolution: {integrity: sha512-yq6OkJ4p82CAfPl0u9mQebQHKPJkY7WrIuk205cTYnYe+k2Z8YBh11FrbRG/H6ihirqcacOgl2BIO8oyMQLeXw==}

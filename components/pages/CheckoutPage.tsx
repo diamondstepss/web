@@ -170,18 +170,12 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
         return
       }
 
-      // With Cashfree live, hand off to their SDK. Until credentials exist the
-      // order is created unpaid and the webhook confirms it later.
-      if (d.paymentSessionId) {
-        const { load } = await import('@cashfreepayments/cashfree-js')
-        const cashfree = await load({
-          mode: process.env.NEXT_PUBLIC_CASHFREE_ENV === 'production' ? 'production' : 'sandbox',
-        })
+      // Instamojo is redirect-based, not an embedded SDK — send the browser
+      // to its hosted checkout page. The order is created unpaid and the
+      // webhook confirms it later, same as before.
+      if (d.paymentUrl) {
         clear()
-        await cashfree.checkout({
-          paymentSessionId: d.paymentSessionId,
-          redirectTarget: '_self',
-        })
+        window.location.href = d.paymentUrl
         return
       }
 
@@ -513,7 +507,7 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
 
               <p className="flex items-start gap-2 text-[11px] mt-4 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                 <ShieldCheck size={13} style={{ color: 'var(--success)', flexShrink: 0, marginTop: 1 }} />
-                Payment is confirmed by Cashfree before we dispatch. Nothing is charged here yet.
+                Payment is confirmed by Instamojo before we dispatch. Nothing is charged here yet.
               </p>
             </div>
           </aside>

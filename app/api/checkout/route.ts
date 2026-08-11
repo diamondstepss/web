@@ -1,11 +1,31 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { priceOrder, CheckoutError, type RequestedLine, type PaymentMode } from '@/lib/server/pricing'
-import { createPaymentSession, isCashfreeConfigured } from '@/lib/server/cashfree'
+import { createPaymentRequest, isInstamojoConfigured } from '@/lib/server/instamojo'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+/**
+ * Undoes a just-placed order when payment setup fails, so a broken gateway
+ * never leaves a confirmed-but-unpaid order (and reserved stock) behind.
+ */
+async function rollbackOrder(
+  admin: SupabaseClient,
+  orderId: string,
+  lines: { product_id: string; size: string | null; qty: number }[],
+) {
+  await admin.from('order_items').delete().eq('order_id', orderId)
+  await admin.from('orders').delete().eq('id', orderId)
+  for (const l of lines) {
+    if (l.size) {
+      await admin.rpc('increment_stock', { p_slug: l.product_id, p_size: l.size, p_qty: l.qty })
+    } else {
+      await admin.rpc('increment_stock', { p_slug: l.product_id, p_qty: l.qty })
+    }
+  }
+}
 
 /**
  * The only place an order can be created.
@@ -117,25 +137,45 @@ export async function POST(req: NextRequest) {
       await admin.rpc('increment_coupon_use', { p_code: priced.couponCode })
     }
 
-    // Money owed online → hand back a Cashfree session for the browser SDK.
-    let paymentSessionId: string | null = null
-    if (priced.amountPaidOnline > 0 && isCashfreeConfigured) {
+    // Money owed online → hand back an Instamojo payment URL for the browser
+    // to redirect to. A failure here must not leave a confirmed-but-unpaid
+    // order behind, so it rolls back the order and reserved stock instead of
+    // silently succeeding.
+    let paymentUrl: string | null = null
+    if (priced.amountPaidOnline > 0) {
+      if (!isInstamojoConfigured) {
+        await rollbackOrder(admin, order.id, priced.lines)
+        console.error('[checkout] Instamojo not configured — order rolled back')
+        return NextResponse.json(
+          { error: 'Payments are temporarily unavailable. Please try again shortly.' },
+          { status: 503 },
+        )
+      }
+
       try {
-        const session = await createPaymentSession({
+        const request = await createPaymentRequest({
           orderNumber,
           amount: priced.amountPaidOnline,
           customer: {
-            id: user.id,
             name: address.name,
             email: user.email ?? '',
             phone: address.phone,
           },
-          returnUrl: `${process.env.NEXT_PUBLIC_SITE_URL ?? req.nextUrl.origin}/checkout/success?order=${orderNumber}`,
+          redirectUrl: `${process.env.NEXT_PUBLIC_SITE_URL ?? req.nextUrl.origin}/checkout/success?order=${orderNumber}`,
         })
-        paymentSessionId = session?.paymentSessionId ?? null
+        if (!request) {
+          await rollbackOrder(admin, order.id, priced.lines)
+          return NextResponse.json({ error: 'Could not start payment. Please try again.' }, { status: 502 })
+        }
+        await admin
+          .from('orders')
+          .update({ gateway_payment_request_id: request.paymentRequestId })
+          .eq('id', order.id)
+        paymentUrl = request.longurl
       } catch (e) {
-        // The order exists and is unpaid; the customer can retry payment.
-        console.error('[checkout] payment session failed', e)
+        console.error('[checkout] payment request failed', e)
+        await rollbackOrder(admin, order.id, priced.lines)
+        return NextResponse.json({ error: 'Could not start payment. Please try again.' }, { status: 502 })
       }
     }
 
@@ -144,7 +184,7 @@ export async function POST(req: NextRequest) {
       total: priced.total,
       amountPaidOnline: priced.amountPaidOnline,
       amountDueOnDelivery: priced.amountDueOnDelivery,
-      paymentSessionId,
+      paymentUrl,
     })
   } catch (e) {
     if (e instanceof CheckoutError) {

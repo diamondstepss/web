@@ -9,63 +9,48 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 /**
- * Cashfree payment webhook — the source of truth for payment confirmation.
+ * Instamojo payment webhook — the source of truth for payment confirmation.
  *
  * The browser redirect after checkout can be forged or simply never happen
  * (user closes the tab), so an order is only ever marked PAID here.
  *
- * Signature scheme: base64(HMAC-SHA256(timestamp + rawBody, clientSecret))
- * compared against the `x-webhook-signature` header.
+ * Signature scheme: remove `mac` from the posted fields, sort the remaining
+ * keys, join their values with '|', HMAC-SHA1 with the account salt. Compare
+ * against the posted `mac` field.
  *
- * The raw body is mandatory — re-serialising parsed JSON reorders keys and the
- * signature will never match. That is why this reads req.text(), not req.json().
+ * Instamojo posts application/x-www-form-urlencoded, not JSON.
  */
 export async function POST(req: NextRequest) {
-  const secret = process.env.CASHFREE_SECRET_KEY
-  if (!secret) {
-    console.error('[cashfree] CASHFREE_SECRET_KEY is not set')
+  const salt = process.env.INSTAMOJO_SALT
+  if (!salt) {
+    console.error('[instamojo] INSTAMOJO_SALT is not set')
     return NextResponse.json({ error: 'not configured' }, { status: 500 })
   }
 
   const rawBody = await req.text()
-  const signature = req.headers.get('x-webhook-signature')
-  const timestamp = req.headers.get('x-webhook-timestamp')
-
-  if (!signature || !timestamp) {
-    return NextResponse.json({ error: 'missing signature headers' }, { status: 400 })
+  const params = new URLSearchParams(rawBody)
+  const providedMac = params.get('mac')
+  if (!providedMac) {
+    return NextResponse.json({ error: 'missing mac' }, { status: 400 })
   }
 
-  // Reject replays of an old, previously-valid payload.
-  const ageSeconds = Math.abs(Date.now() / 1000 - Number(timestamp))
-  if (!Number.isFinite(ageSeconds) || ageSeconds > 300) {
-    return NextResponse.json({ error: 'stale timestamp' }, { status: 400 })
-  }
+  const fields = Array.from(params.entries()).filter(([k]) => k !== 'mac')
+  fields.sort(([a], [b]) => a.localeCompare(b))
+  const message = fields.map(([, v]) => v).join('|')
+  const expected = createHmac('sha1', salt).update(message).digest('hex')
 
-  const expected = createHmac('sha256', secret).update(timestamp + rawBody).digest('base64')
   const a = Buffer.from(expected)
-  const b = Buffer.from(signature)
+  const b = Buffer.from(providedMac)
   if (a.length !== b.length || !timingSafeEqual(a, b)) {
     return NextResponse.json({ error: 'invalid signature' }, { status: 401 })
   }
 
-  let event: {
-    type?: string
-    data?: {
-      order?: { order_id?: string; order_amount?: number }
-      payment?: { cf_payment_id?: string | number; payment_status?: string; payment_amount?: number }
-    }
-  }
-  try {
-    event = JSON.parse(rawBody)
-  } catch {
-    return NextResponse.json({ error: 'invalid json' }, { status: 400 })
-  }
+  const paymentRequestId = params.get('payment_request_id')
+  const paymentId = params.get('payment_id') ?? ''
+  const status = params.get('status')
+  const paidNow = Number(params.get('amount') ?? 0)
 
-  const orderNumber = event.data?.order?.order_id
-  const paymentId = String(event.data?.payment?.cf_payment_id ?? '')
-  const status = event.data?.payment?.payment_status
-
-  if (!orderNumber) return NextResponse.json({ error: 'no order id' }, { status: 400 })
+  if (!paymentRequestId) return NextResponse.json({ error: 'no payment_request_id' }, { status: 400 })
 
   // Service-role client: webhooks have no user session, so RLS must be bypassed.
   // This key is server-only and must never be exposed to the browser.
@@ -75,42 +60,40 @@ export async function POST(req: NextRequest) {
     { auth: { persistSession: false } },
   )
 
-  if (status === 'SUCCESS') {
+  if (status === 'Credit') {
     // Idempotent: replaying the same webhook must not double-apply anything.
     const { data: existing } = await admin
       .from('orders')
-      .select('id, payment_status')
-      .eq('order_number', orderNumber)
+      .select('id, order_number, payment_status')
+      .eq('gateway_payment_request_id', paymentRequestId)
       .maybeSingle()
 
     if (!existing) return NextResponse.json({ error: 'unknown order' }, { status: 404 })
     if (existing.payment_status === 'PAID') return NextResponse.json({ received: true })
 
+    const orderNumber = existing.order_number
+
     const { error } = await admin
       .from('orders')
       .update({ payment_status: 'PAID', status: 'CONFIRMED' })
-      .eq('order_number', orderNumber)
+      .eq('id', existing.id)
 
     if (error) {
-      console.error('[cashfree] order update failed', error)
+      console.error('[instamojo] order update failed', error)
       return NextResponse.json({ error: 'update failed' }, { status: 500 })
     }
 
     // Record what was actually received. This is the only place money is
     // marked as paid — checkout always inserts 0.
-    const paidNow = Number(event.data?.payment?.payment_amount ?? 0)
-    await admin
-      .from('orders')
-      .update({ amount_paid_online: paidNow })
-      .eq('order_number', orderNumber)
+    await admin.from('orders').update({ amount_paid_online: paidNow }).eq('id', existing.id)
 
-    console.info('[cashfree] order paid', { orderNumber, paymentId, paidNow })
+    console.info('[instamojo] order paid', { orderNumber, paymentId, paidNow })
 
     // ── Fulfilment ──────────────────────────────────────────────────────────
     const { data: order } = await admin
       .from('orders')
       .select('*, order_items(*), profiles!orders_user_id_profiles_fkey(email, full_name)')
-      .eq('order_number', orderNumber)
+      .eq('id', existing.id)
       .maybeSingle()
 
     if (order) {
@@ -143,9 +126,9 @@ export async function POST(req: NextRequest) {
               .eq('order_number', orderNumber)
           }
         } catch (err) {
-          // Never fail the webhook on a fulfilment error — Cashfree would retry
-          // and we'd double-handle a payment that already succeeded.
-          console.error('[cashfree] shiprocket push failed', err)
+          // Never fail the webhook on a fulfilment error — Instamojo would
+          // retry and we'd double-handle a payment that already succeeded.
+          console.error('[instamojo] shiprocket push failed', err)
         }
       }
 
@@ -164,14 +147,17 @@ export async function POST(req: NextRequest) {
             amountDueOnDelivery: Number(order.amount_due_on_delivery ?? 0),
           })
         } catch (err) {
-          console.error('[cashfree] confirmation email failed', err)
+          console.error('[instamojo] confirmation email failed', err)
         }
       }
     }
-  } else if (status === 'FAILED' || status === 'USER_DROPPED') {
-    await admin.from('orders').update({ payment_status: 'PENDING' }).eq('order_number', orderNumber)
+  } else if (status === 'Failed') {
+    await admin
+      .from('orders')
+      .update({ payment_status: 'PENDING' })
+      .eq('gateway_payment_request_id', paymentRequestId)
   }
 
-  // Always 200 on a verified event — a non-2xx makes Cashfree retry.
+  // Always 200 on a verified event — a non-2xx makes Instamojo retry.
   return NextResponse.json({ received: true })
 }

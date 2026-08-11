@@ -31,7 +31,7 @@ export interface Integration {
   /**
    * Infrastructure the shop owner never touches, kept out of the way.
    *
-   * Cashfree and Shiprocket are theirs — they log into those dashboards and
+   * Instamojo and Shiprocket are theirs — they log into those dashboards and
    * rotate those keys. Supabase and Resend are ours: set once at setup and
    * never thought about again. Both still belong on this page, because when
    * one does break it is the first place to look.
@@ -67,15 +67,16 @@ export function getIntegrations(): Integration[] {
       { advanced: true },
     ),
     build(
-      'cashfree',
-      'Cashfree',
+      'instamojo',
+      'Instamojo',
       'Online card, UPI and netbanking payments.',
       [
-        { env: 'CASHFREE_APP_ID', label: 'App ID', required: true },
-        { env: 'CASHFREE_SECRET_KEY', label: 'Secret key', required: true },
-        { env: 'CASHFREE_ENV', label: 'Environment (sandbox / production)', required: false },
+        { env: 'INSTAMOJO_API_KEY', label: 'API key', required: true },
+        { env: 'INSTAMOJO_AUTH_TOKEN', label: 'Auth token', required: true },
+        { env: 'INSTAMOJO_SALT', label: 'Salt (webhook verification)', required: true },
+        { env: 'INSTAMOJO_ENV', label: 'Environment (test / production)', required: false },
       ],
-      { note: 'Point the Cashfree webhook at the URL below or paid orders will never be confirmed.' },
+      { note: 'Point the Instamojo webhook at the URL below or paid orders will never be confirmed.' },
     ),
     build(
       'shiprocket',
@@ -105,13 +106,13 @@ export function getIntegrations(): Integration[] {
 export function getWebhookUrls() {
   const base = (process.env.NEXT_PUBLIC_SITE_URL || 'https://diamondstepss.com').replace(/\/$/, '')
   return {
-    cashfree: `${base}/api/webhooks/cashfree`,
+    instamojo: `${base}/api/webhooks/instamojo`,
   }
 }
 
 export function getEnvironment() {
   return {
-    cashfreeMode: (process.env.CASHFREE_ENV || 'sandbox').toLowerCase(),
+    instamojoMode: (process.env.INSTAMOJO_ENV || 'test').toLowerCase(),
     siteUrl: process.env.NEXT_PUBLIC_SITE_URL || null,
     nodeEnv: process.env.NODE_ENV,
   }

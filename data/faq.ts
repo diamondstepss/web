@@ -28,7 +28,7 @@ export function faqGroups(s: StoreSettings = DEFAULT_SETTINGS): FaqGroup[] {
     items: [
       {
         q: 'Which payment methods do you accept?',
-        a: 'UPI (GPay, PhonePe, Paytm), credit and debit cards, net banking, and wallets — all processed securely by Cashfree. Cash on Delivery is available too.',
+        a: 'UPI (GPay, PhonePe, Paytm), credit and debit cards, net banking, and wallets — all processed securely by Instamojo. Cash on Delivery is available too.',
       },
       {
         q: 'What is Partial COD?',

@@ -14,7 +14,7 @@ import { SITE, POLICY_PAGES } from '@/data/site'
  *
  * NOTE: the copy in these pages is a working draft written to match how the
  * store actually operates. Have it reviewed before go-live — policy pages are
- * checked during Cashfree merchant review.
+ * checked during Instamojo merchant review.
  */
 export default function LegalLayout({
   title,

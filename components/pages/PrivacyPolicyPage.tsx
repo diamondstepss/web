@@ -47,7 +47,7 @@ export function PrivacyPolicyPage() {
         <LegalList
           items={[
             <>
-              <strong style={{ color: 'var(--text-primary)' }}>Cashfree Payments</strong> — to process payments and
+              <strong style={{ color: 'var(--text-primary)' }}>Instamojo</strong> — to process payments and
               refunds securely.
             </>,
             <>
