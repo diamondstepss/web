@@ -190,10 +190,15 @@ export function HomePage({
             </div>
           </div>
 
-          {/* Slide controls */}
+          {/* Slide controls — desktop only. The headline/subtitle column is
+              vertically centered in this same tall section and, below the md
+              breakpoint, spans close to the full width with no side margin
+              left for these to sit in, so they'd land on top of the text
+              instead of beside it. Autoplay plus the dots below cover mobile
+              navigation without that overlap. */}
           <button
             onClick={prevSlide}
-            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center text-white transition-colors duration-200"
+            className="hidden md:flex absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 items-center justify-center text-white transition-colors duration-200"
             style={{ background: 'rgba(0,0,0,0.4)', borderRadius: 'var(--radius-btn)' }}
             aria-label="Previous slide"
           >
@@ -201,7 +206,7 @@ export function HomePage({
           </button>
           <button
             onClick={nextSlide}
-            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center text-white transition-colors duration-200"
+            className="hidden md:flex absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 items-center justify-center text-white transition-colors duration-200"
             style={{ background: 'rgba(0,0,0,0.4)', borderRadius: 'var(--radius-btn)' }}
             aria-label="Next slide"
           >
