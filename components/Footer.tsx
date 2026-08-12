@@ -208,7 +208,7 @@ export default function Footer({ codEnabled = DEFAULT_SETTINGS.codEnabled }: { c
           </div>
 
           {/* Contact */}
-          <div>
+          <div className="min-w-0">
             <h4
               className="text-xs font-bold tracking-widest uppercase mb-5"
               style={{ color: 'var(--f-muted)', fontFamily: 'Outfit' }}
@@ -233,7 +233,7 @@ export default function Footer({ codEnabled = DEFAULT_SETTINGS.codEnabled }: { c
             </a>
             <a
               href="mailto:support@diamondstepss.com"
-              className="block text-sm mb-4 transition-colors duration-200"
+              className="block text-sm mb-4 break-words transition-colors duration-200"
               style={{ color: 'var(--f-muted)' }}
               onMouseEnter={(e) => ((e.target as HTMLElement).style.color = 'var(--f-text)')}
               onMouseLeave={(e) => ((e.target as HTMLElement).style.color = 'var(--f-muted)')}
