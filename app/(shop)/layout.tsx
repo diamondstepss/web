@@ -1,6 +1,7 @@
 import AnnouncementBar from '@/components/AnnouncementBar'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
+import CartBar from '@/components/CartBar'
 import { getStoreSettings } from '@/lib/settings'
 
 /**
@@ -17,6 +18,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
       <Header />
       <main>{children}</main>
       <Footer codEnabled={settings.codEnabled} />
+      <CartBar />
     </>
   )
 }
