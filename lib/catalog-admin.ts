@@ -362,7 +362,9 @@ export interface StoreSettings {
   cod_max_order: number
   partial_cod_enabled: boolean
   partial_cod_advance: number
+  /** Percent (0-100) when prepaid_discount_type is PERCENT, rupees when FLAT. */
   prepaid_discount_pct: number
+  prepaid_discount_type: 'PERCENT' | 'FLAT'
   prepaid_discount_min_order: number
 }
 

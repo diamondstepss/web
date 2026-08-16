@@ -12,7 +12,7 @@ import { Tag, X } from 'lucide-react'
 import { useConfirm } from '@/components/ConfirmDialog'
 
 import { SITE } from '@/data/site'
-import { DEFAULT_SETTINGS, shippingFor, type StoreSettings } from '@/lib/settings'
+import { DEFAULT_SETTINGS, shippingFor, prepaidDiscountFor, type StoreSettings } from '@/lib/settings'
 import type { Address, PaymentMode } from '@/lib/types'
 
 const inr = (n: number) => `₹${Number(n).toLocaleString('en-IN')}`
@@ -222,9 +222,8 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
   // lib/server/pricing.ts — a coupon shouldn't knock an order back under the
   // threshold and still keep the prepaid discount too.
   const prepaidEligible = subtotal >= settings.prepaidDiscountMinOrder
-  const prepaidEstimate = prepaidEligible
-    ? Math.round((subtotal - couponOff) * (1 - settings.prepaidDiscountPct / 100)) + ship
-    : subtotal - couponOff + ship
+  const prepaidEstimate =
+    subtotal - couponOff - (prepaidEligible ? prepaidDiscountFor(subtotal - couponOff, settings) : 0) + ship
   const codEstimate = subtotal - couponOff + ship + SITE.codFee
   const total = quote?.total ?? (mode === 'PREPAID' ? prepaidEstimate : mode === 'COD' ? codEstimate : subtotal - couponOff + ship)
   const payNow = mode === 'PREPAID' ? total : mode === 'PARTIAL_COD' ? Math.min(SITE.partialCodAdvance, total) : 0
@@ -365,13 +364,15 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
   // Server-side, priceOrder() already rejects a mode the shop has switched
   // off — this just keeps the option from ever appearing clickable in the
   // first place instead of failing only once the customer tries to submit.
+  const prepaidOff =
+    settings.prepaidDiscountType === 'FLAT' ? inr(settings.prepaidDiscountPct) : `${settings.prepaidDiscountPct}%`
   const MODES: { key: PaymentMode; label: string; sub: string; icon: typeof Wallet; amount: number }[] = [
     {
       key: 'PREPAID',
       label: 'Pay online',
       sub: prepaidEligible
-        ? `${settings.prepaidDiscountPct}% off · UPI, cards, net banking`
-        : `${settings.prepaidDiscountPct}% off on orders over ${inr(settings.prepaidDiscountMinOrder)} · UPI, cards, net banking`,
+        ? `${prepaidOff} off · UPI, cards, net banking`
+        : `${prepaidOff} off on orders over ${inr(settings.prepaidDiscountMinOrder)} · UPI, cards, net banking`,
       icon: CreditCard,
       amount: prepaidEstimate,
     },
@@ -594,7 +595,7 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
                 <Row label="Subtotal" value={inr(subtotal)} />
                 {applied && <Row label={`Coupon ${applied.code}`} value={`− ${inr(applied.discount)}`} tint="var(--success)" />}
                 {mode === 'PREPAID' && prepaidEligible && (
-                  <Row label={`Prepaid discount (${settings.prepaidDiscountPct}%)`} value="applied" tint="var(--success)" />
+                  <Row label={`Prepaid discount (${prepaidOff})`} value="applied" tint="var(--success)" />
                 )}
                 <Row label="Shipping" value={(quote?.shippingFee ?? ship) === 0 ? 'FREE' : inr(quote?.shippingFee ?? ship)} tint={(quote?.shippingFee ?? ship) === 0 ? 'var(--success)' : undefined} />
                 {mode === 'COD' && <Row label="COD fee" value={inr(SITE.codFee)} />}

@@ -61,7 +61,9 @@ export const SITE = {
   freeShippingOver: 1999,
   codFee: 49,
   partialCodAdvance: 300,
+  /** Percent (0-100) when prepaidDiscountType is PERCENT, rupees when FLAT. */
   prepaidDiscountPct: 30,
+  prepaidDiscountType: 'FLAT' as const,
   /** Prepaid discount only applies at or above this order value. */
   prepaidDiscountMinOrder: 1499,
   returnWindowDays: 7,

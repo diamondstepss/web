@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { DEFAULT_SETTINGS, shippingFor, type StoreSettings } from '@/lib/settings'
+import { DEFAULT_SETTINGS, shippingFor, prepaidDiscountFor, type StoreSettings } from '@/lib/settings'
 import { SITE } from '@/data/site'
 import {
   Heart,
@@ -181,9 +181,8 @@ export function ProductPage({
   const unitPrice = incoming?.price ?? 0
   const shipEstimate = shippingFor(unitPrice, settings)
   const prepaidEligible = unitPrice >= settings.prepaidDiscountMinOrder
-  const prepaidPrice = prepaidEligible
-    ? Math.round(unitPrice * (1 - settings.prepaidDiscountPct / 100)) + shipEstimate
-    : unitPrice + shipEstimate
+  const prepaidPrice =
+    unitPrice - (prepaidEligible ? prepaidDiscountFor(unitPrice, settings) : 0) + shipEstimate
   const codPrice = unitPrice + shipEstimate + SITE.codFee
   const partialTotal = unitPrice + shipEstimate
   const partialAdvance = Math.min(SITE.partialCodAdvance, partialTotal)
@@ -691,9 +690,15 @@ export function ProductPage({
                   key: 'PREPAID' as const,
                   label: 'Pay Online',
                   price: inr(prepaidPrice),
-                  note: prepaidEligible
-                    ? `Extra ${settings.prepaidDiscountPct}% off`
-                    : `${settings.prepaidDiscountPct}% off orders over ${inr(settings.prepaidDiscountMinOrder)}`,
+                  note: (() => {
+                    const off =
+                      settings.prepaidDiscountType === 'FLAT'
+                        ? inr(settings.prepaidDiscountPct)
+                        : `${settings.prepaidDiscountPct}%`
+                    return prepaidEligible
+                      ? `Extra ${off} off`
+                      : `${off} off orders over ${inr(settings.prepaidDiscountMinOrder)}`
+                  })(),
                   badge: 'RECOMMENDED',
                 },
                 ...(settings.codEnabled

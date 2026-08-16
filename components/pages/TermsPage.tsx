@@ -47,8 +47,8 @@ export function TermsPage() {
               well as Cash on Delivery.
             </>,
             <>
-              We may offer a {SITE.prepaidDiscountPct}% discount on prepaid orders over ₹{SITE.prepaidDiscountMinOrder}.
-              COD orders carry a ₹{SITE.codFee} handling fee.
+              We may offer a {SITE.prepaidDiscountType === 'FLAT' ? `₹${SITE.prepaidDiscountPct}` : `${SITE.prepaidDiscountPct}%`}{' '}
+              discount on prepaid orders over ₹{SITE.prepaidDiscountMinOrder}. COD orders carry a ₹{SITE.codFee} handling fee.
             </>,
             <>
               Where you choose the partial-COD option, the ₹{SITE.partialCodAdvance} advance is non-refundable if

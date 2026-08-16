@@ -58,7 +58,9 @@ interface Settings {
   cod_max_order: number
   partial_cod_enabled: boolean
   partial_cod_advance: number
+  // Percent (0-100) when prepaid_discount_type is PERCENT, rupees when FLAT.
   prepaid_discount_pct: number
+  prepaid_discount_type: 'PERCENT' | 'FLAT'
   prepaid_discount_min_order: number
 }
 
@@ -71,17 +73,23 @@ const FALLBACK: Settings = {
   partial_cod_enabled: true,
   partial_cod_advance: 300,
   prepaid_discount_pct: 30,
+  prepaid_discount_type: 'FLAT',
   prepaid_discount_min_order: 1499,
 }
 
 export async function getSettings(): Promise<Settings> {
   const { data } = await admin().from('store_settings').select('*').maybeSingle()
   if (!data) return FALLBACK
-  // Coalesced in case this reads before the migration adding the column has
-  // run — 0 means "no minimum," i.e. the discount keeps applying flatly,
-  // same as it always has, rather than the threshold silently disabling it
-  // outright for every order until that migration lands.
-  return { ...(data as Settings), prepaid_discount_min_order: Number(data.prepaid_discount_min_order ?? 0) }
+  // Coalesced in case this reads before the migrations adding these columns
+  // have run: 0 min-order means "no minimum," same as the flat discount's
+  // always applied historically; PERCENT matches what prepaid_discount_pct
+  // always meant before the type column existed. Either way this must not
+  // silently disable the discount outright until the migration lands.
+  return {
+    ...(data as Settings),
+    prepaid_discount_min_order: Number(data.prepaid_discount_min_order ?? 0),
+    prepaid_discount_type: (data.prepaid_discount_type as 'PERCENT' | 'FLAT') ?? 'PERCENT',
+  }
 }
 
 export class CheckoutError extends Error {
@@ -188,7 +196,9 @@ export async function priceOrder(
   const afterCoupon = subtotal - couponDiscount
   const prepaidDiscount =
     mode === 'PREPAID' && subtotal >= s.prepaid_discount_min_order
-      ? Math.round(afterCoupon * (s.prepaid_discount_pct / 100))
+      ? s.prepaid_discount_type === 'FLAT'
+        ? Math.min(s.prepaid_discount_pct, afterCoupon)
+        : Math.round(afterCoupon * (s.prepaid_discount_pct / 100))
       : 0
 
   const shippingFee =

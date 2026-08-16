@@ -14,7 +14,6 @@ const COD: [keyof StoreSettings, string, string][] = [
   ['cod_fee', 'COD handling fee ₹', 'Added to cash-on-delivery orders.'],
   ['cod_max_order', 'COD max order ₹', 'COD is hidden above this value.'],
   ['partial_cod_advance', 'Partial COD advance ₹', 'Paid online; the rest on delivery.'],
-  ['prepaid_discount_pct', 'Prepaid discount %', 'Incentive for paying in full up front.'],
   ['prepaid_discount_min_order', 'Prepaid discount min. order ₹', 'Only orders at or above this qualify. 0 = always applies.'],
 ]
 
@@ -56,7 +55,11 @@ export default function ShippingView() {
   const example = 1499
   const ship = example >= s.free_shipping_over ? 0 : s.shipping_fee
   const prepaidEligible = example >= s.prepaid_discount_min_order
-  const prepaidSave = prepaidEligible ? Math.round((example * s.prepaid_discount_pct) / 100) : 0
+  const prepaidSave = !prepaidEligible
+    ? 0
+    : s.prepaid_discount_type === 'FLAT'
+      ? Math.min(s.prepaid_discount_pct, example)
+      : Math.round((example * s.prepaid_discount_pct) / 100)
 
   return (
     <div>
@@ -123,6 +126,36 @@ export default function ShippingView() {
 
             <div className="grid sm:grid-cols-2 gap-4" style={{ opacity: s.cod_enabled || s.partial_cod_enabled ? 1 : 0.5 }}>
               {COD.map(([k, l, h]) => field(k, l, h))}
+            </div>
+
+            <div className="mt-5 pt-5" style={{ borderTop: '1px solid var(--adm-line)' }}>
+              <p className="text-[11px] font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--adm-text-3)' }}>
+                Prepaid discount
+              </p>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <AdminField label="Discount type" hint="How the value below is interpreted.">
+                  <select
+                    value={s.prepaid_discount_type}
+                    onChange={(e) => setS({ ...s, prepaid_discount_type: e.target.value as 'PERCENT' | 'FLAT' })}
+                    className="adm-input"
+                  >
+                    <option value="FLAT">Flat ₹ off</option>
+                    <option value="PERCENT">Percent off</option>
+                  </select>
+                </AdminField>
+                <AdminField
+                  label={s.prepaid_discount_type === 'FLAT' ? 'Discount amount ₹' : 'Discount %'}
+                  hint="Incentive for paying in full up front."
+                >
+                  <input
+                    type="number"
+                    min="0"
+                    value={String(s.prepaid_discount_pct)}
+                    onChange={(e) => setS({ ...s, prepaid_discount_pct: Number(e.target.value) })}
+                    className="adm-input adm-num"
+                  />
+                </AdminField>
+              </div>
             </div>
           </Panel>
         </div>

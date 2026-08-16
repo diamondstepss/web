@@ -22,7 +22,9 @@ export interface StoreSettings {
   codMaxOrder: number
   partialCodEnabled: boolean
   partialCodAdvance: number
+  /** Percent (0-100) when prepaidDiscountType is PERCENT, rupees when FLAT. */
   prepaidDiscountPct: number
+  prepaidDiscountType: 'PERCENT' | 'FLAT'
   prepaidDiscountMinOrder: number
 }
 
@@ -36,6 +38,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   partialCodEnabled: true,
   partialCodAdvance: SITE.partialCodAdvance,
   prepaidDiscountPct: SITE.prepaidDiscountPct,
+  prepaidDiscountType: SITE.prepaidDiscountType,
   prepaidDiscountMinOrder: SITE.prepaidDiscountMinOrder,
 }
 
@@ -52,6 +55,7 @@ interface Row {
   partial_cod_enabled: boolean
   partial_cod_advance: number
   prepaid_discount_pct: number
+  prepaid_discount_type: string
   prepaid_discount_min_order: number
 }
 
@@ -83,8 +87,9 @@ export async function getStoreSettings(): Promise<StoreSettings> {
       partialCodEnabled: Boolean(r.partial_cod_enabled),
       partialCodAdvance: Number(r.partial_cod_advance),
       prepaidDiscountPct: Number(r.prepaid_discount_pct),
-      // Coalesced in case this reads before the migration adding the column
-      // has run — see the matching comment in lib/server/pricing.ts.
+      // Coalesced in case this reads before the migrations adding these
+      // columns have run — see the matching comment in lib/server/pricing.ts.
+      prepaidDiscountType: r.prepaid_discount_type === 'FLAT' ? 'FLAT' : 'PERCENT',
       prepaidDiscountMinOrder: Number(r.prepaid_discount_min_order ?? 0),
     }
   } catch (e) {
@@ -97,4 +102,15 @@ export async function getStoreSettings(): Promise<StoreSettings> {
 export function shippingFor(subtotal: number, s: StoreSettings): number {
   if (subtotal <= 0) return 0
   return subtotal >= s.freeShippingOver ? 0 : s.shippingFee
+}
+
+/**
+ * Prepaid discount for a given basis, using the same rule priceOrder()
+ * applies server-side. `eligible` is separate from the amount because
+ * callers need to know "does this basis clear the minimum" for its own
+ * sake — e.g. to decide which copy to show, not just what number to show.
+ */
+export function prepaidDiscountFor(basis: number, s: StoreSettings): number {
+  if (s.prepaidDiscountType === 'FLAT') return Math.min(s.prepaidDiscountPct, basis)
+  return Math.round(basis * (s.prepaidDiscountPct / 100))
 }
