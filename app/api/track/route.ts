@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
   const admin = createClient(url, key, { auth: { persistSession: false } })
   const { data, error } = await admin
     .from('orders')
-    .select('order_number, status, payment_status, payment_mode, placed_at, awb, courier, total, amount_due_on_delivery, shipping_address')
+    .select('order_number, status, payment_status, payment_mode, fulfillment_type, placed_at, awb, courier, total, amount_due_on_delivery, shipping_address')
     .eq('order_number', orderNumber)
     .maybeSingle()
 
@@ -90,6 +90,7 @@ export async function POST(req: NextRequest) {
       status: data.status,
       paymentStatus: data.payment_status,
       paymentMode: data.payment_mode,
+      fulfillmentType: data.fulfillment_type,
       placedAt: data.placed_at,
       // Null until Shiprocket assigns one — the UI must not invent a number.
       awb: data.awb ?? null,

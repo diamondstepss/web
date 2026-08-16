@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { priceOrder, CheckoutError, type RequestedLine, type PaymentMode } from '@/lib/server/pricing'
+import { priceOrder, CheckoutError, type RequestedLine, type PaymentMode, type FulfillmentType } from '@/lib/server/pricing'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -15,8 +15,14 @@ export async function POST(req: NextRequest) {
       lines?: RequestedLine[]
       mode?: PaymentMode
       couponCode?: string
+      fulfillmentType?: FulfillmentType
     }
-    const priced = await priceOrder(body.lines ?? [], body.mode ?? 'PREPAID', body.couponCode)
+    const priced = await priceOrder(
+      body.lines ?? [],
+      body.mode ?? 'PREPAID',
+      body.couponCode,
+      body.fulfillmentType ?? 'DELIVERY',
+    )
     return NextResponse.json({
       valid: Boolean(priced.couponCode),
       code: priced.couponCode,

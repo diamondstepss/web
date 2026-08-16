@@ -1,7 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { priceOrder, CheckoutError, type RequestedLine, type PaymentMode } from '@/lib/server/pricing'
+import {
+  priceOrder,
+  CheckoutError,
+  type RequestedLine,
+  type PaymentMode,
+  type FulfillmentType,
+} from '@/lib/server/pricing'
 import { createPaymentRequest, isInstamojoConfigured } from '@/lib/server/instamojo'
 import { restoreStock } from '@/lib/server/stock'
 
@@ -43,6 +49,8 @@ export async function POST(req: NextRequest) {
     mode?: PaymentMode
     couponCode?: string | null
     addressId?: string
+    fulfillmentType?: FulfillmentType
+    pickupContact?: { name?: string; phone?: string }
   }
   try {
     body = await req.json()
@@ -51,19 +59,46 @@ export async function POST(req: NextRequest) {
   }
 
   const mode = body.mode ?? 'PREPAID'
+  const fulfillmentType: FulfillmentType = body.fulfillmentType === 'PICKUP' ? 'PICKUP' : 'DELIVERY'
 
   try {
-    const priced = await priceOrder(body.lines ?? [], mode, body.couponCode)
+    const priced = await priceOrder(body.lines ?? [], mode, body.couponCode, fulfillmentType)
 
-    // Address must belong to the caller — RLS enforces it on this read.
-    const { data: address } = await supabase
-      .from('addresses')
-      .select('*')
-      .eq('id', body.addressId ?? '')
-      .maybeSingle()
+    // Pickup has no delivery address at all — just who to hand the order to
+    // at the counter. Delivery still requires one the caller actually owns
+    // (RLS enforces that on this read).
+    let contact: { name: string; phone: string }
+    let shippingAddress: Record<string, unknown>
 
-    if (!address) {
-      return NextResponse.json({ error: 'Choose a delivery address.' }, { status: 400 })
+    if (fulfillmentType === 'PICKUP') {
+      const name = body.pickupContact?.name?.trim() ?? ''
+      const phone = body.pickupContact?.phone?.trim() ?? ''
+      if (!name || !phone) {
+        return NextResponse.json({ error: 'Add your name and phone number for pickup.' }, { status: 400 })
+      }
+      contact = { name, phone }
+      shippingAddress = { name, phone }
+    } else {
+      const { data: address } = await supabase
+        .from('addresses')
+        .select('*')
+        .eq('id', body.addressId ?? '')
+        .maybeSingle()
+
+      if (!address) {
+        return NextResponse.json({ error: 'Choose a delivery address.' }, { status: 400 })
+      }
+
+      contact = { name: address.name, phone: address.phone }
+      shippingAddress = {
+        name: address.name,
+        phone: address.phone,
+        line1: address.line1,
+        line2: address.line2,
+        city: address.city,
+        state: address.state,
+        pincode: address.pincode,
+      }
     }
 
     const orderNumber = `DS-${new Date().getFullYear()}-${Math.floor(Math.random() * 900000 + 100000)}`
@@ -82,6 +117,7 @@ export async function POST(req: NextRequest) {
         status: 'CONFIRMED',
         payment_mode: mode,
         payment_status: 'PENDING',
+        fulfillment_type: fulfillmentType,
         subtotal: priced.subtotal,
         discount: priced.discount,
         shipping_fee: priced.shippingFee,
@@ -90,15 +126,7 @@ export async function POST(req: NextRequest) {
         // Only the payment webhook may record money as received.
         amount_paid_online: 0,
         amount_due_on_delivery: priced.amountDueOnDelivery,
-        shipping_address: {
-          name: address.name,
-          phone: address.phone,
-          line1: address.line1,
-          line2: address.line2,
-          city: address.city,
-          state: address.state,
-          pincode: address.pincode,
-        },
+        shipping_address: shippingAddress,
       })
       .select('id, order_number, total')
       .single()
@@ -152,9 +180,9 @@ export async function POST(req: NextRequest) {
           orderNumber,
           amount: priced.amountPaidOnline,
           customer: {
-            name: address.name,
+            name: contact.name,
             email: user.email ?? '',
-            phone: address.phone,
+            phone: contact.phone,
           },
           redirectUrl: `${process.env.NEXT_PUBLIC_SITE_URL ?? req.nextUrl.origin}/checkout/success?order=${orderNumber}`,
         })

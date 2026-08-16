@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Loader2, ShieldCheck, Wallet, CreditCard, Banknote, Check } from 'lucide-react'
+import { Loader2, ShieldCheck, Wallet, CreditCard, Banknote, Check, Store, Truck } from 'lucide-react'
 import PageHero from '@/components/PageHero'
 import { useCart } from '@/context/CartContext'
 import { useAuth } from '@/context/AuthContext'
@@ -11,9 +11,9 @@ import { fetchAddresses, createAddress, fetchOrderPaymentStatus, cancelOrderByNu
 import { Tag, X } from 'lucide-react'
 import { useConfirm } from '@/components/ConfirmDialog'
 
-import { SITE } from '@/data/site'
+import { SITE, ADDRESS_ONE_LINE } from '@/data/site'
 import { DEFAULT_SETTINGS, shippingFor, prepaidDiscountFor, type StoreSettings } from '@/lib/settings'
-import type { Address, PaymentMode } from '@/lib/types'
+import type { Address, PaymentMode, FulfillmentType } from '@/lib/types'
 
 const inr = (n: number) => `₹${Number(n).toLocaleString('en-IN')}`
 
@@ -40,6 +40,9 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
   const [addingAddress, setAddingAddress] = useState(false)
   const [addressForm, setAddressForm] = useState<AddressInput>(emptyAddressForm())
   const [addressBusy, setAddressBusy] = useState(false)
+  const [fulfillmentType, setFulfillmentType] = useState<FulfillmentType>('DELIVERY')
+  const [pickupName, setPickupName] = useState('')
+  const [pickupPhone, setPickupPhone] = useState('')
   const [mode, setMode] = useState<PaymentMode>('PREPAID')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -63,14 +66,30 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
 
   const cartPayload = lines.map((l) => ({ productId: l.productId, size: l.size, qty: l.qty }))
 
-  // Re-price whenever the basket, mode or coupon changes.
+  // Pickup has no courier to collect from or advance-pay-then-settle with —
+  // it's prepaid or it doesn't happen (enforced again server-side).
+  useEffect(() => {
+    if (fulfillmentType === 'PICKUP' && mode !== 'PREPAID') setMode('PREPAID')
+  }, [fulfillmentType, mode])
+
+  // Prefill pickup contact from the profile once it arrives, same pattern as
+  // the address form's prefill effect below — without clobbering typing.
+  useEffect(() => {
+    if (!profile) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPickupName((n) => n || profile.full_name || '')
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPickupPhone((p) => p || profile.phone || '')
+  }, [profile])
+
+  // Re-price whenever the basket, mode, coupon or fulfillment type changes.
   useEffect(() => {
     if (!lines.length) return
     let alive = true
     fetch('/api/coupon', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lines: cartPayload, mode, couponCode: applied?.code ?? null }),
+      body: JSON.stringify({ lines: cartPayload, mode, couponCode: applied?.code ?? null, fulfillmentType }),
     })
       .then((r) => r.json())
       .then((d) => {
@@ -82,7 +101,7 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lines, mode, applied])
+  }, [lines, mode, applied, fulfillmentType])
 
   // Polls the webhook-updated payment status while the Instamojo tab is
   // open. Runs alongside the manual "check now" button below, which just
@@ -152,7 +171,7 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
       const res = await fetch('/api/coupon', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lines: cartPayload, mode, couponCode: coupon.trim() }),
+        body: JSON.stringify({ lines: cartPayload, mode, couponCode: coupon.trim(), fulfillmentType }),
       })
       const d = await res.json()
       if (d.valid) {
@@ -213,11 +232,15 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
   }
 
   const address = addresses.find((a) => a.id === addressId)
+  // What "step 1 is done" means depends on the fulfillment path — an address
+  // for delivery, a name and phone for pickup.
+  const contactReady =
+    fulfillmentType === 'DELIVERY' ? Boolean(address) : Boolean(pickupName.trim() && pickupPhone.trim())
   const subtotal = lines.reduce((sum, l) => sum + l.price * l.qty, 0)
   // Display-only estimates so the option cards show a number before the server
   // replies. The authoritative figure is `quote`, and the charge is server-side.
   const couponOff = applied?.discount ?? 0
-  const ship = shippingFor(subtotal, settings)
+  const ship = fulfillmentType === 'PICKUP' ? 0 : shippingFor(subtotal, settings)
   // Gated on the pre-coupon subtotal, same as the authoritative calc in
   // lib/server/pricing.ts — a coupon shouldn't knock an order back under the
   // threshold and still keep the prepaid discount too.
@@ -230,7 +253,7 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
   const dueLater = total - payNow
 
   const submit = async () => {
-    if (!user || !address) return
+    if (!user || !contactReady) return
     setBusy(true)
     setError(null)
     try {
@@ -241,7 +264,10 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
           lines: cartPayload,
           mode,
           couponCode: applied?.code ?? null,
-          addressId,
+          fulfillmentType,
+          ...(fulfillmentType === 'PICKUP'
+            ? { pickupContact: { name: pickupName.trim(), phone: pickupPhone.trim() } }
+            : { addressId }),
         }),
       })
       const d = await res.json()
@@ -376,7 +402,9 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
       icon: CreditCard,
       amount: prepaidEstimate,
     },
-    ...(settings.partialCodEnabled
+    // Pickup has no courier to hand cash or a balance to — online, in full,
+    // is the only way to pay for it.
+    ...(fulfillmentType === 'DELIVERY' && settings.partialCodEnabled
       ? [{
           key: 'PARTIAL_COD' as const,
           label: `Pay ₹${SITE.partialCodAdvance} now, rest on delivery`,
@@ -385,7 +413,7 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
           amount: SITE.partialCodAdvance,
         }]
       : []),
-    ...(settings.codEnabled
+    ...(fulfillmentType === 'DELIVERY' && settings.codEnabled
       ? [{
           key: 'COD' as const,
           label: 'Cash on delivery',
@@ -409,14 +437,44 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
               </p>
             )}
 
-            {/* Address */}
+            {/* Fulfillment */}
+            <div className="grid sm:grid-cols-2 gap-3">
+              {(
+                [
+                  { key: 'DELIVERY' as const, icon: Truck, label: 'Home delivery', sub: 'Delivered to your address' },
+                  { key: 'PICKUP' as const, icon: Store, label: 'Pickup from store', sub: 'Free · pay online, collect in person' },
+                ]
+              ).map(({ key, icon: Icon, label, sub }) => {
+                const on = fulfillmentType === key
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setFulfillmentType(key)}
+                    className="flex items-center gap-3 p-4 text-left"
+                    style={{
+                      background: on ? 'color-mix(in srgb, var(--accent) 7%, transparent)' : 'var(--surface)',
+                      border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
+                      borderRadius: 18,
+                    }}
+                  >
+                    <Icon size={18} style={{ color: on ? 'var(--accent)' : 'var(--text-muted)', flexShrink: 0 }} />
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{label}</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{sub}</p>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Address / pickup details */}
             <div className="p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 18 }}>
               <div className="flex items-center justify-between mb-4">
                 <p className="flex items-center gap-2.5 text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-outfit)' }}>
-                  <StepBadge n={1} done={!addingAddress && Boolean(address)} />
-                  Deliver to
+                  <StepBadge n={1} done={fulfillmentType === 'PICKUP' ? contactReady : !addingAddress && Boolean(address)} />
+                  {fulfillmentType === 'PICKUP' ? 'Pickup details' : 'Deliver to'}
                 </p>
-                {!addingAddress && addresses.length > 0 && (
+                {fulfillmentType === 'DELIVERY' && !addingAddress && addresses.length > 0 && (
                   <button
                     onClick={() => setAddingAddress(true)}
                     className="text-[11px] font-black uppercase tracking-widest"
@@ -427,7 +485,38 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
                 )}
               </div>
 
-              {addingAddress ? (
+              {fulfillmentType === 'PICKUP' ? (
+                <div className="space-y-4">
+                  <div className="p-4" style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 14 }}>
+                    <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{SITE.name}</p>
+                    <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>{ADDRESS_ONE_LINE}</p>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <Field label="Full name">
+                      <input
+                        required
+                        value={pickupName}
+                        onChange={(e) => setPickupName(e.target.value)}
+                        className="w-full px-4 text-sm outline-none"
+                        style={fieldStyle}
+                      />
+                    </Field>
+                    <Field label="Phone">
+                      <input
+                        required
+                        value={pickupPhone}
+                        onChange={(e) => setPickupPhone(e.target.value)}
+                        placeholder="+91"
+                        className="w-full px-4 text-sm outline-none"
+                        style={fieldStyle}
+                      />
+                    </Field>
+                  </div>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    We&apos;ll text this number when your order is ready to collect.
+                  </p>
+                </div>
+              ) : addingAddress ? (
                 <form onSubmit={saveAddress} className="grid sm:grid-cols-2 gap-4">
                   <Field label="Full name">
                     <input
@@ -535,25 +624,27 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
               )}
             </div>
 
-            {/* Payment — locked until an address is chosen, so the flow reads top-to-bottom */}
+            {/* Payment — locked until step 1 is done, so the flow reads top-to-bottom */}
             <div
               className="p-6"
               style={{
                 background: 'var(--surface)',
                 border: '1px solid var(--border)',
                 borderRadius: 18,
-                opacity: address ? 1 : 0.5,
-                pointerEvents: address ? 'auto' : 'none',
+                opacity: contactReady ? 1 : 0.5,
+                pointerEvents: contactReady ? 'auto' : 'none',
                 transition: 'opacity 150ms',
               }}
             >
               <p className="flex items-center gap-2.5 text-[11px] font-black uppercase tracking-[0.18em] mb-4" style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-outfit)' }}>
-                <StepBadge n={2} done={Boolean(address)} />
+                <StepBadge n={2} done={contactReady} />
                 Payment method
               </p>
-              {!address && (
+              {!contactReady && (
                 <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
-                  Choose a delivery address above to continue.
+                  {fulfillmentType === 'PICKUP'
+                    ? 'Add your name and phone number above to continue.'
+                    : 'Choose a delivery address above to continue.'}
                 </p>
               )}
               <div className="space-y-3">
@@ -597,7 +688,11 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
                 {mode === 'PREPAID' && prepaidEligible && (
                   <Row label={`Prepaid discount (${prepaidOff})`} value="applied" tint="var(--success)" />
                 )}
-                <Row label="Shipping" value={(quote?.shippingFee ?? ship) === 0 ? 'FREE' : inr(quote?.shippingFee ?? ship)} tint={(quote?.shippingFee ?? ship) === 0 ? 'var(--success)' : undefined} />
+                <Row
+                  label="Shipping"
+                  value={fulfillmentType === 'PICKUP' ? 'Pickup — FREE' : (quote?.shippingFee ?? ship) === 0 ? 'FREE' : inr(quote?.shippingFee ?? ship)}
+                  tint={fulfillmentType === 'PICKUP' || (quote?.shippingFee ?? ship) === 0 ? 'var(--success)' : undefined}
+                />
                 {mode === 'COD' && <Row label="COD fee" value={inr(SITE.codFee)} />}
               </div>
 
@@ -651,14 +746,14 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
 
               <button
                 onClick={submit}
-                disabled={busy || !address}
+                disabled={busy || !contactReady}
                 className="w-full flex items-center justify-center gap-2 mt-6 py-4 text-[11px] font-black uppercase tracking-widest text-white"
                 style={{
                   background: 'var(--accent)',
                   borderRadius: 99,
                   fontFamily: 'var(--font-outfit)',
-                  opacity: busy || !address ? 0.5 : 1,
-                  cursor: busy || !address ? 'not-allowed' : 'pointer',
+                  opacity: busy || !contactReady ? 0.5 : 1,
+                  cursor: busy || !contactReady ? 'not-allowed' : 'pointer',
                 }}
               >
                 {busy ? <><Loader2 size={15} className="animate-spin" /> Placing order</> : `Place order · ${inr(payNow || total)}`}
@@ -666,7 +761,7 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
 
               <p className="flex items-start gap-2 text-[11px] mt-4 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                 <ShieldCheck size={13} style={{ color: 'var(--success)', flexShrink: 0, marginTop: 1 }} />
-                Payment is confirmed by Instamojo before we dispatch. Nothing is charged here yet.
+                Payment is confirmed by Instamojo before we {fulfillmentType === 'PICKUP' ? 'get your order ready' : 'dispatch'}. Nothing is charged here yet.
               </p>
             </div>
           </aside>

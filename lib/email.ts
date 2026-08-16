@@ -1,6 +1,6 @@
 import 'server-only'
 import { Resend } from 'resend'
-import { SITE } from '@/data/site'
+import { SITE, ADDRESS_ONE_LINE } from '@/data/site'
 import { getStoreSettings, DEFAULT_SETTINGS, type StoreSettings } from './settings'
 import {
   shell,
@@ -170,6 +170,7 @@ export interface OrderEmailInput {
   total: number
   amountPaidOnline: number
   amountDueOnDelivery: number
+  fulfillmentType?: 'DELIVERY' | 'PICKUP'
 }
 
 /** Sent once the payment webhook confirms an order. */
@@ -187,6 +188,11 @@ export function renderOrderConfirmation(input: OrderEmailInput): Mail {
          </table>`
       : ''
 
+  const isPickup = input.fulfillmentType === 'PICKUP'
+  const pickupNote = isPickup
+    ? paragraph(`We'll email you again the moment it's ready to collect from ${ADDRESS_ONE_LINE}.`)
+    : ''
+
   const body = `
     ${heading(first ? `Thanks, ${first}` : 'Thanks for your order')}
     ${paragraph(
@@ -200,7 +206,8 @@ export function renderOrderConfirmation(input: OrderEmailInput): Mail {
       ${input.amountPaidOnline > 0 ? row('Paid online', `− ${inr(input.amountPaidOnline)}`, { tint: C.success }) : ''}
     </table>
     ${balance}
-    ${button('Track your order', `${SITE_URL}/order-tracking`)}`
+    ${pickupNote}
+    ${button(isPickup ? 'View order' : 'Track your order', `${SITE_URL}/order-tracking`)}`
 
   return {
     to: input.to,

@@ -7,6 +7,7 @@ import {
   Package,
   CheckCircle2,
   Truck,
+  Store,
   Copy,
   MessageCircle,
   ArrowRight,
@@ -14,7 +15,7 @@ import {
   Loader2,
   Check,
 } from 'lucide-react'
-import { SITE } from '@/data/site'
+import { SITE, ADDRESS_ONE_LINE } from '@/data/site'
 
 const TIMELINE = [
   { label: 'Order placed', detail: 'We received your order', at: '20 Jul, 11:42 AM', done: true },
@@ -432,6 +433,8 @@ function PreviewCard() {
 
 /** Status → where it sits on the journey, and how to describe it. */
 const STATUS_STEPS = ['CONFIRMED', 'PACKED', 'SHIPPED', 'DELIVERED'] as const
+// Pickup skips the shipped/in-transit leg entirely — there's no courier.
+const STATUS_STEPS_PICKUP = ['CONFIRMED', 'PACKED', 'DELIVERED'] as const
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: 'Awaiting payment',
@@ -440,6 +443,12 @@ const STATUS_LABEL: Record<string, string> = {
   SHIPPED: 'In transit',
   DELIVERED: 'Delivered',
   CANCELLED: 'Cancelled',
+}
+
+const STATUS_LABEL_PICKUP: Record<string, string> = {
+  ...STATUS_LABEL,
+  PACKED: 'Ready for pickup',
+  DELIVERED: 'Picked up',
 }
 
 const STATUS_TINT: Record<string, string> = {
@@ -456,6 +465,7 @@ export interface TrackedOrder {
   status: string
   paymentStatus: string
   paymentMode: string
+  fulfillmentType: string
   placedAt: string
   awb: string | null
   courier: string | null
@@ -484,7 +494,10 @@ function ResultCard({
   onReset: () => void
 }) {
   const inr = (n: number) => `₹${Number(n).toLocaleString('en-IN')}`
-  const stepIndex = STATUS_STEPS.indexOf(order.status as (typeof STATUS_STEPS)[number])
+  const isPickup = order.fulfillmentType === 'PICKUP'
+  const steps: readonly string[] = isPickup ? STATUS_STEPS_PICKUP : STATUS_STEPS
+  const statusLabel = isPickup ? STATUS_LABEL_PICKUP : STATUS_LABEL
+  const stepIndex = steps.indexOf(order.status)
   const cancelled = order.status === 'CANCELLED'
 
   return (
@@ -522,22 +535,36 @@ function ResultCard({
           className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-white"
           style={{ background: STATUS_TINT[order.status] ?? 'var(--text-muted)', borderRadius: 99, fontFamily: 'var(--font-outfit)' }}
         >
-          <Truck size={12} /> {STATUS_LABEL[order.status] ?? order.status}
+          {isPickup ? <Store size={12} /> : <Truck size={12} />} {statusLabel[order.status] ?? order.status}
         </span>
       </div>
 
       <div className="px-6 py-5 flex flex-wrap gap-6" style={{ borderBottom: '1px solid var(--border)' }}>
-        <div>
-          <p
-            className="text-[11px] font-black uppercase tracking-widest mb-1"
-            style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-outfit)' }}
-          >
-            Courier
-          </p>
-          <p className="text-sm font-bold" style={{ color: order.courier ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-            {order.courier ?? 'Assigned when dispatched'}
-          </p>
-        </div>
+        {isPickup ? (
+          <div>
+            <p
+              className="text-[11px] font-black uppercase tracking-widest mb-1"
+              style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-outfit)' }}
+            >
+              Pickup at
+            </p>
+            <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+              {ADDRESS_ONE_LINE}
+            </p>
+          </div>
+        ) : (
+          <div>
+            <p
+              className="text-[11px] font-black uppercase tracking-widest mb-1"
+              style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-outfit)' }}
+            >
+              Courier
+            </p>
+            <p className="text-sm font-bold" style={{ color: order.courier ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+              {order.courier ?? 'Assigned when dispatched'}
+            </p>
+          </div>
+        )}
 
         <div>
           <p
@@ -551,24 +578,26 @@ function ResultCard({
           </p>
         </div>
 
-        <div>
-          <p
-            className="text-[11px] font-black uppercase tracking-widest mb-1"
-            style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-outfit)' }}
-          >
-            AWB
-          </p>
-          {order.awb ? (
-            <button onClick={onCopy} className="flex items-center gap-2 text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-              {order.awb}
-              {copied ? <Check size={13} style={{ color: 'var(--success)' }} /> : <Copy size={13} style={{ color: 'var(--text-muted)' }} />}
-            </button>
-          ) : (
-            <p className="text-sm font-bold" style={{ color: 'var(--text-muted)' }}>
-              Not yet dispatched
+        {!isPickup && (
+          <div>
+            <p
+              className="text-[11px] font-black uppercase tracking-widest mb-1"
+              style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-outfit)' }}
+            >
+              AWB
             </p>
-          )}
-        </div>
+            {order.awb ? (
+              <button onClick={onCopy} className="flex items-center gap-2 text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                {order.awb}
+                {copied ? <Check size={13} style={{ color: 'var(--success)' }} /> : <Copy size={13} style={{ color: 'var(--text-muted)' }} />}
+              </button>
+            ) : (
+              <p className="text-sm font-bold" style={{ color: 'var(--text-muted)' }}>
+                Not yet dispatched
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Progress. Only steps the order has actually reached are marked done. */}
@@ -579,7 +608,7 @@ function ResultCard({
           </p>
         ) : (
           <ol className="space-y-4">
-            {STATUS_STEPS.map((step, i) => {
+            {steps.map((step, i) => {
               const done = stepIndex >= i
               const current = stepIndex === i
               return (
@@ -603,7 +632,7 @@ function ResultCard({
                       className="block text-sm font-bold"
                       style={{ color: done ? 'var(--text-primary)' : 'var(--text-muted)' }}
                     >
-                      {STATUS_LABEL[step]}
+                      {statusLabel[step]}
                     </span>
                     {current && (
                       <span className="block text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>

@@ -26,7 +26,7 @@ import SupabaseSetupNotice from '@/components/SupabaseSetupNotice'
 import { WhatsAppIcon } from '@/components/SocialIcons'
 import { useConfirm } from '@/components/ConfirmDialog'
 import type { Product } from '@/lib/types'
-import { SITE } from '@/data/site'
+import { SITE, ADDRESS_ONE_LINE } from '@/data/site'
 import { useAuth } from '@/context/AuthContext'
 import { isSupabaseConfigured } from '@/lib/supabase/client'
 import {
@@ -45,7 +45,9 @@ import {
   type Order,
   type Address,
   ORDER_STEPS,
+  ORDER_STEPS_PICKUP,
   STEP_LABELS,
+  STEP_LABELS_PICKUP,
   PAYMENT_LABELS,
   orderProgress,
 } from '@/lib/types'
@@ -145,7 +147,11 @@ export function AccountPage({ products = [] }: { products?: Product[] }) {
     { key: 'profile', label: 'Profile', icon: User },
   ]
 
-  const activeOrder = orders.find((o) => ['SHIPPED', 'OUT_FOR_DELIVERY'].includes(o.status))
+  // A pickup order has no shipped/out-for-delivery leg — "ready" (PACKED) is
+  // its equivalent "come get this" moment.
+  const activeOrder = orders.find((o) =>
+    o.fulfillment_type === 'PICKUP' ? o.status === 'PACKED' : ['SHIPPED', 'OUT_FOR_DELIVERY'].includes(o.status),
+  )
 
   return (
     <div className="relative overflow-hidden" style={{ background: 'var(--bg)' }}>
@@ -390,7 +396,7 @@ export function AccountPage({ products = [] }: { products?: Product[] }) {
             {/* ── Right rail: fills the space with useful context ──── */}
             <aside className="space-y-4">
               {activeOrder && (
-                <Panel title="Arriving soon">
+                <Panel title={activeOrder.fulfillment_type === 'PICKUP' ? 'Ready for pickup' : 'Arriving soon'}>
                   <p
                     className="text-sm font-black"
                     style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-outfit)' }}
@@ -398,10 +404,14 @@ export function AccountPage({ products = [] }: { products?: Product[] }) {
                     #{activeOrder.order_number}
                   </p>
                   <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                    {activeOrder.courier ?? 'In transit'}
-                    {activeOrder.awb ? ` · ${activeOrder.awb}` : ''}
+                    {activeOrder.fulfillment_type === 'PICKUP'
+                      ? ADDRESS_ONE_LINE
+                      : `${activeOrder.courier ?? 'In transit'}${activeOrder.awb ? ` · ${activeOrder.awb}` : ''}`}
                   </p>
-                  <Progress step={orderProgress(activeOrder.status)} />
+                  <Progress
+                    step={orderProgress(activeOrder.status, activeOrder.fulfillment_type)}
+                    fulfillmentType={activeOrder.fulfillment_type}
+                  />
                   {Number(activeOrder.amount_due_on_delivery) > 0 && (
                     <p
                       className="mt-4 text-xs font-bold px-3 py-2"
@@ -514,9 +524,11 @@ function OrderCard({
   onToggle: () => void
   onCancel: () => void
 }) {
+  const isPickup = o.fulfillment_type === 'PICKUP'
   const meta = STATUS_META[o.status] ?? STATUS_META.CONFIRMED
   const StatusIcon = meta.icon
-  const step = orderProgress(o.status)
+  const statusLabel = isPickup ? (STEP_LABELS_PICKUP[o.status] ?? meta.label) : meta.label
+  const step = orderProgress(o.status, o.fulfillment_type)
   const due = Number(o.amount_due_on_delivery ?? 0)
 
   return (
@@ -542,7 +554,7 @@ function OrderCard({
           style={{ background: meta.color, borderRadius: 99, fontFamily: 'var(--font-outfit)' }}
         >
           <StatusIcon size={11} />
-          {meta.label}
+          {statusLabel}
         </span>
       </div>
 
@@ -598,16 +610,25 @@ function OrderCard({
 
         {open && step > 0 && (
           <div className="mt-6 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
-            {o.courier && (
+            {isPickup ? (
               <p
                 className="text-[11px] font-black uppercase tracking-widest mb-5"
                 style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-outfit)' }}
               >
-                {o.courier}
-                {o.awb ? ` · AWB ${o.awb}` : ''}
+                Pickup at {ADDRESS_ONE_LINE}
               </p>
+            ) : (
+              o.courier && (
+                <p
+                  className="text-[11px] font-black uppercase tracking-widest mb-5"
+                  style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-outfit)' }}
+                >
+                  {o.courier}
+                  {o.awb ? ` · AWB ${o.awb}` : ''}
+                </p>
+              )
             )}
-            <Progress step={step} labels />
+            <Progress step={step} labels fulfillmentType={o.fulfillment_type} />
           </div>
         )}
 
@@ -619,7 +640,7 @@ function OrderCard({
               style={{ background: 'var(--accent)', borderRadius: 99, fontFamily: 'var(--font-outfit)' }}
             >
               <Truck size={13} />
-              {open ? 'Hide tracking' : 'Track order'}
+              {isPickup ? (open ? 'Hide details' : 'Pickup details') : open ? 'Hide tracking' : 'Track order'}
             </button>
           )}
           {o.status === 'DELIVERED' && (
@@ -646,10 +667,20 @@ function OrderCard({
   )
 }
 
-function Progress({ step, labels = false }: { step: number; labels?: boolean }) {
+function Progress({
+  step,
+  labels = false,
+  fulfillmentType = 'DELIVERY',
+}: {
+  step: number
+  labels?: boolean
+  fulfillmentType?: Order['fulfillment_type']
+}) {
+  const steps = fulfillmentType === 'PICKUP' ? ORDER_STEPS_PICKUP : ORDER_STEPS
+  const stepLabels = fulfillmentType === 'PICKUP' ? STEP_LABELS_PICKUP : STEP_LABELS
   return (
     <div className="flex items-start mt-4">
-      {ORDER_STEPS.map((s, i) => {
+      {steps.map((s, i) => {
         const done = i < step
         const current = i === step - 1
         return (
@@ -681,7 +712,7 @@ function Progress({ step, labels = false }: { step: number; labels?: boolean }) 
                 className="mt-2 text-[9px] text-center leading-tight px-1"
                 style={{ color: done ? 'var(--text-primary)' : 'var(--text-muted)' }}
               >
-                {STEP_LABELS[s]}
+                {stepLabels[s]}
               </span>
             )}
           </div>

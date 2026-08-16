@@ -26,6 +26,7 @@ export interface PricedLine {
 }
 
 export type PaymentMode = 'PREPAID' | 'COD' | 'PARTIAL_COD'
+export type FulfillmentType = 'DELIVERY' | 'PICKUP'
 
 export interface PricedOrder {
   lines: PricedLine[]
@@ -106,8 +107,14 @@ export async function priceOrder(
   requested: RequestedLine[],
   mode: PaymentMode,
   couponCode?: string | null,
+  fulfillmentType: FulfillmentType = 'DELIVERY',
 ): Promise<PricedOrder> {
   if (!requested.length) throw new CheckoutError('Your cart is empty.')
+  // No courier involved, so there's nothing to collect at the door and
+  // nothing to advance-pay-then-collect-the-rest on — pickup is prepaid or
+  // it doesn't happen.
+  if (fulfillmentType === 'PICKUP' && mode !== 'PREPAID')
+    throw new CheckoutError('Pickup orders must be paid online.')
 
   const db = admin()
   const slugs = [...new Set(requested.map((l) => l.productId))]
@@ -202,7 +209,9 @@ export async function priceOrder(
       : 0
 
   const shippingFee =
-    freeShipFromCoupon || subtotal >= s.free_shipping_over ? 0 : Number(s.shipping_fee)
+    fulfillmentType === 'PICKUP' || freeShipFromCoupon || subtotal >= s.free_shipping_over
+      ? 0
+      : Number(s.shipping_fee)
   const codFee = mode === 'COD' ? Number(s.cod_fee) : 0
 
   const discount = couponDiscount + prepaidDiscount

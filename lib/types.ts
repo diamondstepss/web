@@ -29,6 +29,8 @@ export type OrderStatus =
 
 export type PaymentMode = 'PREPAID' | 'COD' | 'PARTIAL_COD'
 
+export type FulfillmentType = 'DELIVERY' | 'PICKUP'
+
 export interface Profile {
   id: string
   full_name: string | null
@@ -70,6 +72,7 @@ export interface Order {
   status: OrderStatus
   payment_mode: PaymentMode
   payment_status: string
+  fulfillment_type: FulfillmentType
   subtotal: number
   discount: number
   shipping_fee: number
@@ -81,6 +84,16 @@ export interface Order {
   awb: string | null
   placed_at: string
   order_items: OrderItem[]
+  /** A delivery address for DELIVERY orders, or just {name, phone} for PICKUP. */
+  shipping_address: {
+    name: string
+    phone: string
+    line1?: string
+    line2?: string | null
+    city?: string
+    state?: string
+    pincode?: string
+  } | null
 }
 
 /** Order of the fulfilment timeline, used to derive progress from `status`. */
@@ -92,12 +105,22 @@ export const ORDER_STEPS: OrderStatus[] = [
   'DELIVERED',
 ]
 
+// Pickup skips the shipped/out-for-delivery leg entirely — there's no
+// courier in that path, just "ready" and "picked up."
+export const ORDER_STEPS_PICKUP: OrderStatus[] = ['CONFIRMED', 'PACKED', 'DELIVERED']
+
 export const STEP_LABELS: Record<string, string> = {
   CONFIRMED: 'Ordered',
   PACKED: 'Packed',
   SHIPPED: 'Shipped',
   OUT_FOR_DELIVERY: 'Out for delivery',
   DELIVERED: 'Delivered',
+}
+
+export const STEP_LABELS_PICKUP: Record<string, string> = {
+  CONFIRMED: 'Ordered',
+  PACKED: 'Ready for pickup',
+  DELIVERED: 'Picked up',
 }
 
 export const PAYMENT_LABELS: Record<PaymentMode, string> = {
@@ -107,7 +130,8 @@ export const PAYMENT_LABELS: Record<PaymentMode, string> = {
 }
 
 /** How many timeline steps are complete. Cancelled orders have no progress. */
-export function orderProgress(status: OrderStatus): number {
+export function orderProgress(status: OrderStatus, fulfillmentType: FulfillmentType = 'DELIVERY'): number {
   if (status === 'CANCELLED') return 0
-  return ORDER_STEPS.indexOf(status) + 1
+  const steps = fulfillmentType === 'PICKUP' ? ORDER_STEPS_PICKUP : ORDER_STEPS
+  return steps.indexOf(status) + 1
 }

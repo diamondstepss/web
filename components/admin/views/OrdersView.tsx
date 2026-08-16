@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Inbox, Search , MoveHorizontal } from 'lucide-react'
 import { updateOrderStatus, bulkUpdateOrderStatus } from '@/lib/admin'
-import type { OrderStatus } from '@/lib/types'
+import { STEP_LABELS_PICKUP, type OrderStatus } from '@/lib/types'
 import { useConfirm } from '@/components/ConfirmDialog'
 import {
   inr,
@@ -28,6 +28,13 @@ const NEXT_STEP: Partial<Record<OrderStatus, { to: OrderStatus; label: string; p
   CONFIRMED: { to: 'PACKED', label: 'Mark packed', primary: true },
   PACKED: { to: 'SHIPPED', label: 'Ship', primary: true },
   SHIPPED: { to: 'DELIVERED', label: 'Delivered', primary: false },
+}
+
+// Pickup skips the shipped/out-for-delivery leg — there's no courier, just
+// "ready" and "handed over."
+const NEXT_STEP_PICKUP: Partial<Record<OrderStatus, { to: OrderStatus; label: string; primary: boolean }>> = {
+  CONFIRMED: { to: 'PACKED', label: 'Mark ready for pickup', primary: true },
+  PACKED: { to: 'DELIVERED', label: 'Mark picked up', primary: true },
 }
 
 const STATUS_TONE: Record<string, string> = {
@@ -252,16 +259,18 @@ export default function OrdersView() {
                   <th>Date</th>
                   <th className="text-right">Total</th>
                   <th>Pay mode</th>
+                  <th>Fulfillment</th>
                   <th className="text-right">Due on delivery</th>
                   <th>Status</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {loading && <SkeletonRows cols={9} rows={6} />}
+                {loading && <SkeletonRows cols={10} rows={6} />}
                 {shown.map((o) => {
                   const due = Number(o.amount_due_on_delivery ?? 0)
-                  const step = NEXT_STEP[o.status as OrderStatus]
+                  const isPickup = o.fulfillment_type === 'PICKUP'
+                  const step = (isPickup ? NEXT_STEP_PICKUP : NEXT_STEP)[o.status as OrderStatus]
                   const cancellable = o.status === 'CONFIRMED' || o.status === 'PACKED'
                   return (
                     <tr key={o.id}>
@@ -286,12 +295,17 @@ export default function OrdersView() {
                           {o.payment_mode.replace('_', ' ')}
                         </span>
                       </td>
+                      <td>
+                        <span className={`adm-badge ${isPickup ? 'adm-badge-acc' : 'adm-badge-mute'}`}>
+                          {isPickup ? 'Pickup' : 'Delivery'}
+                        </span>
+                      </td>
                       <td className="text-right adm-num font-semibold" style={{ color: due > 0 ? 'var(--adm-warn)' : 'var(--adm-text-3)' }}>
                         {due > 0 ? inr(due) : '—'}
                       </td>
                       <td>
                         <span className={`adm-badge ${STATUS_TONE[o.status] ?? 'adm-badge-mute'}`}>
-                          {o.status.replace(/_/g, ' ')}
+                          {isPickup ? (STEP_LABELS_PICKUP[o.status] ?? o.status.replace(/_/g, ' ')) : o.status.replace(/_/g, ' ')}
                         </span>
                       </td>
                       <td className="text-right">

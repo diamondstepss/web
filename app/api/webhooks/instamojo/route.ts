@@ -102,7 +102,9 @@ export async function POST(req: NextRequest) {
         city: string; state: string; pincode: string
       } | null
 
-      if (address) {
+      // Pickup orders never reach a courier — shipping_address on one of
+      // those only ever holds a name/phone, not somewhere to send a parcel.
+      if (address && order.fulfillment_type !== 'PICKUP') {
         try {
           const shipment = await pushOrder({
             orderNumber,
@@ -145,6 +147,7 @@ export async function POST(req: NextRequest) {
             total: Number(order.total ?? 0),
             amountPaidOnline: paidNow,
             amountDueOnDelivery: Number(order.amount_due_on_delivery ?? 0),
+            fulfillmentType: order.fulfillment_type,
           })
         } catch (err) {
           console.error('[instamojo] confirmation email failed', err)

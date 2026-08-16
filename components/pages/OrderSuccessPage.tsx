@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { CheckCircle2, Package, Truck, Loader2, Wallet } from 'lucide-react'
+import { CheckCircle2, Package, Truck, Store, Loader2, Wallet } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { fetchOrders } from '@/lib/api'
-import { SITE } from '@/data/site'
+import { SITE, ADDRESS_ONE_LINE } from '@/data/site'
 import type { Order } from '@/lib/types'
 
 const inr = (n: number) => `₹${Number(n).toLocaleString('en-IN')}`
@@ -120,10 +120,17 @@ export function OrderSuccessPage() {
               <span className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
                 <Package size={14} style={{ color: 'var(--accent)' }} /> Packing today
               </span>
-              <span className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
-                <Truck size={14} style={{ color: 'var(--accent)' }} />
-                Arriving by {eta.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-              </span>
+              {order.fulfillment_type === 'PICKUP' ? (
+                <span className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <Store size={14} style={{ color: 'var(--accent)' }} />
+                  Pickup at {ADDRESS_ONE_LINE}
+                </span>
+              ) : (
+                <span className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                  <Truck size={14} style={{ color: 'var(--accent)' }} />
+                  Arriving by {eta.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                </span>
+              )}
             </div>
           </div>
         )}
