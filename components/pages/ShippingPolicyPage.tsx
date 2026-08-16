@@ -65,7 +65,8 @@ export function ShippingPolicyPage({ settings = DEFAULT_SETTINGS }: { settings?:
             </>,
             <>
               Cash on Delivery adds a ₹{SITE.codFee} handling fee. Choosing to pay online instead removes this fee
-              and applies an extra {SITE.prepaidDiscountPct}% discount.
+              and, on orders over ₹{settings.prepaidDiscountMinOrder.toLocaleString('en-IN')}, applies an extra{' '}
+              {settings.prepaidDiscountPct}% discount.
             </>,
             <>The price you see is the price you pay. No taxes or charges are added after checkout.</>,
           ]}

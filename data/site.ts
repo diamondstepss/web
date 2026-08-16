@@ -61,7 +61,9 @@ export const SITE = {
   freeShippingOver: 1999,
   codFee: 49,
   partialCodAdvance: 300,
-  prepaidDiscountPct: 5,
+  prepaidDiscountPct: 30,
+  /** Prepaid discount only applies at or above this order value. */
+  prepaidDiscountMinOrder: 1499,
   returnWindowDays: 7,
   deliveryDays: '2–5 business days',
 

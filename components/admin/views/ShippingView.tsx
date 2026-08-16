@@ -15,6 +15,7 @@ const COD: [keyof StoreSettings, string, string][] = [
   ['cod_max_order', 'COD max order ₹', 'COD is hidden above this value.'],
   ['partial_cod_advance', 'Partial COD advance ₹', 'Paid online; the rest on delivery.'],
   ['prepaid_discount_pct', 'Prepaid discount %', 'Incentive for paying in full up front.'],
+  ['prepaid_discount_min_order', 'Prepaid discount min. order ₹', 'Only orders at or above this qualify. 0 = always applies.'],
 ]
 
 export default function ShippingView() {
@@ -54,7 +55,8 @@ export default function ShippingView() {
   // Worked example, so the numbers above aren't abstract.
   const example = 1499
   const ship = example >= s.free_shipping_over ? 0 : s.shipping_fee
-  const prepaidSave = Math.round((example * s.prepaid_discount_pct) / 100)
+  const prepaidEligible = example >= s.prepaid_discount_min_order
+  const prepaidSave = prepaidEligible ? Math.round((example * s.prepaid_discount_pct) / 100) : 0
 
   return (
     <div>
@@ -135,7 +137,9 @@ export default function ShippingView() {
               {[
                 ['Shipping', ship === 0 ? 'Free' : inr(ship)],
                 ['Pay in full', inr(example + ship - prepaidSave)],
-                ...(s.prepaid_discount_pct > 0 ? [['Prepaid saving', `−${inr(prepaidSave)}`] as [string, string]] : []),
+                ...(s.prepaid_discount_pct > 0 && prepaidEligible
+                  ? [['Prepaid saving', `−${inr(prepaidSave)}`] as [string, string]]
+                  : []),
                 ...(s.cod_enabled ? [['COD total', inr(example + ship + s.cod_fee)] as [string, string]] : []),
                 ...(s.partial_cod_enabled
                   ? [

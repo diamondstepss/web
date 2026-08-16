@@ -36,7 +36,7 @@ export function faqGroups(s: StoreSettings = DEFAULT_SETTINGS): FaqGroup[] {
       },
       {
         q: 'Is there a discount for paying online?',
-        a: `Yes — prepaid orders get an extra ${SITE.prepaidDiscountPct}% off, and you skip the ₹${SITE.codFee} COD handling fee. It is the cheapest way to order.`,
+        a: `Yes — prepaid orders over ₹${SITE.prepaidDiscountMinOrder} get an extra ${SITE.prepaidDiscountPct}% off, and you always skip the ₹${SITE.codFee} COD handling fee. It is the cheapest way to order.`,
       },
       {
         q: 'Can I cancel after ordering?',

@@ -23,6 +23,7 @@ export interface StoreSettings {
   partialCodEnabled: boolean
   partialCodAdvance: number
   prepaidDiscountPct: number
+  prepaidDiscountMinOrder: number
 }
 
 /** Used when the table is unreachable, so a page never renders a blank price. */
@@ -35,6 +36,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   partialCodEnabled: true,
   partialCodAdvance: SITE.partialCodAdvance,
   prepaidDiscountPct: SITE.prepaidDiscountPct,
+  prepaidDiscountMinOrder: SITE.prepaidDiscountMinOrder,
 }
 
 const REST = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1`
@@ -50,6 +52,7 @@ interface Row {
   partial_cod_enabled: boolean
   partial_cod_advance: number
   prepaid_discount_pct: number
+  prepaid_discount_min_order: number
 }
 
 /**
@@ -80,6 +83,9 @@ export async function getStoreSettings(): Promise<StoreSettings> {
       partialCodEnabled: Boolean(r.partial_cod_enabled),
       partialCodAdvance: Number(r.partial_cod_advance),
       prepaidDiscountPct: Number(r.prepaid_discount_pct),
+      // Coalesced in case this reads before the migration adding the column
+      // has run — see the matching comment in lib/server/pricing.ts.
+      prepaidDiscountMinOrder: Number(r.prepaid_discount_min_order ?? 0),
     }
   } catch (e) {
     console.error('[settings] fetch failed', e)

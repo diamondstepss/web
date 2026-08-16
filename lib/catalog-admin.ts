@@ -363,6 +363,7 @@ export interface StoreSettings {
   partial_cod_enabled: boolean
   partial_cod_advance: number
   prepaid_discount_pct: number
+  prepaid_discount_min_order: number
 }
 
 export async function fetchSettings(): Promise<StoreSettings | null> {

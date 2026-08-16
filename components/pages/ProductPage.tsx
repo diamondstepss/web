@@ -180,7 +180,10 @@ export function ProductPage({
   // aware of coupons the way the real checkout total is.
   const unitPrice = incoming?.price ?? 0
   const shipEstimate = shippingFor(unitPrice, settings)
-  const prepaidPrice = Math.round(unitPrice * (1 - SITE.prepaidDiscountPct / 100)) + shipEstimate
+  const prepaidEligible = unitPrice >= settings.prepaidDiscountMinOrder
+  const prepaidPrice = prepaidEligible
+    ? Math.round(unitPrice * (1 - settings.prepaidDiscountPct / 100)) + shipEstimate
+    : unitPrice + shipEstimate
   const codPrice = unitPrice + shipEstimate + SITE.codFee
   const partialTotal = unitPrice + shipEstimate
   const partialAdvance = Math.min(SITE.partialCodAdvance, partialTotal)
@@ -688,7 +691,9 @@ export function ProductPage({
                   key: 'PREPAID' as const,
                   label: 'Pay Online',
                   price: inr(prepaidPrice),
-                  note: `Extra ${SITE.prepaidDiscountPct}% off`,
+                  note: prepaidEligible
+                    ? `Extra ${settings.prepaidDiscountPct}% off`
+                    : `${settings.prepaidDiscountPct}% off orders over ${inr(settings.prepaidDiscountMinOrder)}`,
                   badge: 'RECOMMENDED',
                 },
                 ...(settings.codEnabled

@@ -218,7 +218,13 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
   // replies. The authoritative figure is `quote`, and the charge is server-side.
   const couponOff = applied?.discount ?? 0
   const ship = shippingFor(subtotal, settings)
-  const prepaidEstimate = Math.round((subtotal - couponOff) * (1 - SITE.prepaidDiscountPct / 100)) + ship
+  // Gated on the pre-coupon subtotal, same as the authoritative calc in
+  // lib/server/pricing.ts — a coupon shouldn't knock an order back under the
+  // threshold and still keep the prepaid discount too.
+  const prepaidEligible = subtotal >= settings.prepaidDiscountMinOrder
+  const prepaidEstimate = prepaidEligible
+    ? Math.round((subtotal - couponOff) * (1 - settings.prepaidDiscountPct / 100)) + ship
+    : subtotal - couponOff + ship
   const codEstimate = subtotal - couponOff + ship + SITE.codFee
   const total = quote?.total ?? (mode === 'PREPAID' ? prepaidEstimate : mode === 'COD' ? codEstimate : subtotal - couponOff + ship)
   const payNow = mode === 'PREPAID' ? total : mode === 'PARTIAL_COD' ? Math.min(SITE.partialCodAdvance, total) : 0
@@ -363,7 +369,9 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
     {
       key: 'PREPAID',
       label: 'Pay online',
-      sub: `${SITE.prepaidDiscountPct}% off · UPI, cards, net banking`,
+      sub: prepaidEligible
+        ? `${settings.prepaidDiscountPct}% off · UPI, cards, net banking`
+        : `${settings.prepaidDiscountPct}% off on orders over ${inr(settings.prepaidDiscountMinOrder)} · UPI, cards, net banking`,
       icon: CreditCard,
       amount: prepaidEstimate,
     },
@@ -585,7 +593,9 @@ export function CheckoutPage({ settings = DEFAULT_SETTINGS }: { settings?: Store
               <div className="space-y-3 text-sm">
                 <Row label="Subtotal" value={inr(subtotal)} />
                 {applied && <Row label={`Coupon ${applied.code}`} value={`− ${inr(applied.discount)}`} tint="var(--success)" />}
-                {mode === 'PREPAID' && <Row label={`Prepaid discount (${SITE.prepaidDiscountPct}%)`} value="applied" tint="var(--success)" />}
+                {mode === 'PREPAID' && prepaidEligible && (
+                  <Row label={`Prepaid discount (${settings.prepaidDiscountPct}%)`} value="applied" tint="var(--success)" />
+                )}
                 <Row label="Shipping" value={(quote?.shippingFee ?? ship) === 0 ? 'FREE' : inr(quote?.shippingFee ?? ship)} tint={(quote?.shippingFee ?? ship) === 0 ? 'var(--success)' : undefined} />
                 {mode === 'COD' && <Row label="COD fee" value={inr(SITE.codFee)} />}
               </div>

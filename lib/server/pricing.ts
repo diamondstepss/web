@@ -59,6 +59,7 @@ interface Settings {
   partial_cod_enabled: boolean
   partial_cod_advance: number
   prepaid_discount_pct: number
+  prepaid_discount_min_order: number
 }
 
 const FALLBACK: Settings = {
@@ -69,12 +70,18 @@ const FALLBACK: Settings = {
   cod_max_order: 10000,
   partial_cod_enabled: true,
   partial_cod_advance: 300,
-  prepaid_discount_pct: 5,
+  prepaid_discount_pct: 30,
+  prepaid_discount_min_order: 1499,
 }
 
 export async function getSettings(): Promise<Settings> {
   const { data } = await admin().from('store_settings').select('*').maybeSingle()
-  return (data as Settings) ?? FALLBACK
+  if (!data) return FALLBACK
+  // Coalesced in case this reads before the migration adding the column has
+  // run — 0 means "no minimum," i.e. the discount keeps applying flatly,
+  // same as it always has, rather than the threshold silently disabling it
+  // outright for every order until that migration lands.
+  return { ...(data as Settings), prepaid_discount_min_order: Number(data.prepaid_discount_min_order ?? 0) }
 }
 
 export class CheckoutError extends Error {
@@ -176,9 +183,13 @@ export async function priceOrder(
   }
 
   // Prepaid discount applies after the coupon, on what's actually being paid.
+  // Gated on the pre-coupon subtotal — a coupon shouldn't be able to knock an
+  // order back under the threshold and still keep the prepaid discount too.
   const afterCoupon = subtotal - couponDiscount
   const prepaidDiscount =
-    mode === 'PREPAID' ? Math.round(afterCoupon * (s.prepaid_discount_pct / 100)) : 0
+    mode === 'PREPAID' && subtotal >= s.prepaid_discount_min_order
+      ? Math.round(afterCoupon * (s.prepaid_discount_pct / 100))
+      : 0
 
   const shippingFee =
     freeShipFromCoupon || subtotal >= s.free_shipping_over ? 0 : Number(s.shipping_fee)
