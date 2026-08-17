@@ -36,29 +36,10 @@ const HERO_SLIDES = [
     sub: 'Performance meets street. Nike, Adidas, Jordan — all in one place.',
     image: 'https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?w=1440&h=900&fit=crop&auto=format',
   },
-  {
-    id: 3,
-    eyebrow: 'MEGA SALE',
-    headline: 'UP TO 63%\nOFF TODAY',
-    sub: 'Best discounts of the season. COD available on all orders.',
-    image: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=1440&h=900&fit=crop&auto=format',
-  },
 ]
 
 
 
-
-function useCountdown(targetSecs: number) {
-  const [secs, setSecs] = useState(targetSecs)
-  useEffect(() => {
-    const t = setInterval(() => setSecs((s) => Math.max(0, s - 1)), 1000)
-    return () => clearInterval(t)
-  }, [])
-  const h = Math.floor(secs / 3600)
-  const m = Math.floor((secs % 3600) / 60)
-  const s = secs % 60
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-}
 
 export function HomePage({
   products = [],
@@ -101,7 +82,6 @@ export function HomePage({
   const [heroSlide, setHeroSlide] = useState(0)
   const [videoPlaying, setVideoPlaying] = useState(false)
   const heroTimer = useRef<ReturnType<typeof setInterval> | null>(null)
-  const countdown = useCountdown(14 * 3600 + 22 * 60 + 9)
   const discountScrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {

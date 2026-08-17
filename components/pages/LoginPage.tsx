@@ -4,21 +4,12 @@ import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ArrowRight, ArrowLeft, Loader2, ShieldCheck, X, Eye, EyeOff, CheckCircle2, Sparkles } from 'lucide-react'
+import { ArrowRight, ArrowLeft, Loader2, ShieldCheck, X, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { isSupabaseConfigured } from '@/lib/supabase/client'
 import SupabaseSetupNotice from '@/components/SupabaseSetupNotice'
 import { SITE } from '@/data/site'
 import { DEFAULT_SETTINGS, type StoreSettings } from '@/lib/settings'
-
-/**
- * Optional demo account. Both vars must be set for the button to appear, so
- * leaving them blank in production removes it with no code change.
- * It is an ordinary customer account — RLS scopes it to its own rows.
- */
-const DEMO_EMAIL = process.env.NEXT_PUBLIC_DEMO_EMAIL
-const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD
-const DEMO_ENABLED = Boolean(DEMO_EMAIL && DEMO_PASSWORD)
 
 const OTP_LENGTH = 6
 const RESEND_SECONDS = 30
@@ -93,17 +84,6 @@ export function LoginPage({ settings = DEFAULT_SETTINGS }: { settings?: StoreSet
     }
 
     const { error } = await signInWithPassword(email.trim(), password)
-    setBusy(false)
-    if (error) return setError(humanise(error))
-    router.replace(redirectTo)
-  }
-
-  const signInAsDemo = async () => {
-    if (!DEMO_ENABLED) return
-    setBusy(true)
-    setError(null)
-    setNotice(null)
-    const { error } = await signInWithPassword(DEMO_EMAIL!, DEMO_PASSWORD!)
     setBusy(false)
     if (error) return setError(humanise(error))
     router.replace(redirectTo)
@@ -257,40 +237,6 @@ export function LoginPage({ settings = DEFAULT_SETTINGS }: { settings?: StoreSet
           >
             {mode === 'otp' && step === 'otp' ? 'Enter code' : isSignUp ? 'Create account' : 'Sign in'}
           </h1>
-
-          {DEMO_ENABLED && !(mode === 'otp' && step === 'otp') && (
-            <>
-              <button
-                type="button"
-                onClick={signInAsDemo}
-                disabled={busy}
-                className="group w-full flex items-center justify-center gap-2 text-xs font-black uppercase tracking-widest mb-5"
-                style={{
-                  height: 48,
-                  borderRadius: 99,
-                  border: '1px dashed color-mix(in srgb, var(--accent) 55%, transparent)',
-                  background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
-                  color: 'var(--accent)',
-                  fontFamily: 'var(--font-outfit)',
-                  opacity: busy ? 0.5 : 1,
-                  cursor: busy ? 'not-allowed' : 'pointer',
-                  transition: 'background .2s ease',
-                }}
-              >
-                <Sparkles size={15} />
-                Try the demo account
-                <ArrowRight size={14} className="transition-transform group-hover:translate-x-1" />
-              </button>
-
-              <div className="flex items-center gap-3 mb-5" aria-hidden>
-                <span style={{ height: 1, flex: 1, background: 'var(--border)' }} />
-                <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-                  or sign in
-                </span>
-                <span style={{ height: 1, flex: 1, background: 'var(--border)' }} />
-              </div>
-            </>
-          )}
 
           {/* Method switch */}
           {!(mode === 'otp' && step === 'otp') && (
