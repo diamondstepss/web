@@ -18,6 +18,13 @@ interface AuthValue {
     password: string,
   ) => Promise<{ error: string | null; needsConfirmation: boolean }>
   sendPasswordReset: (email: string) => Promise<{ error: string | null }>
+  /**
+   * Redirects the whole page to the provider — there's no session to return
+   * here yet. A caught error only ever means the redirect itself couldn't
+   * start (e.g. the provider isn't enabled in Supabase); the real outcome
+   * comes back through /auth/callback.
+   */
+  signInWithOAuth: (provider: 'google' | 'facebook', next?: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
 }
@@ -123,6 +130,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null, needsConfirmation }
   }
 
+  const signInWithOAuth: AuthValue['signInWithOAuth'] = async (provider, next) => {
+    const supabase = createClient()
+    if (!supabase) return { error: 'Supabase is not configured.' }
+    const callback = new URL('/auth/callback', window.location.origin)
+    if (next) callback.searchParams.set('next', next)
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: callback.toString() },
+    })
+    return { error: error?.message ?? null }
+  }
+
   const sendPasswordReset: AuthValue['sendPasswordReset'] = async (email) => {
     const supabase = createClient()
     if (!supabase) return { error: 'Supabase is not configured.' }
@@ -156,6 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signInWithPassword,
         signUpWithPassword,
         sendPasswordReset,
+        signInWithOAuth,
         signOut,
         refreshProfile,
       }}

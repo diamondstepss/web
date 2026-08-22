@@ -8,6 +8,7 @@ import { ArrowRight, ArrowLeft, Loader2, ShieldCheck, X, Eye, EyeOff, CheckCircl
 import { useAuth } from '@/context/AuthContext'
 import { isSupabaseConfigured } from '@/lib/supabase/client'
 import SupabaseSetupNotice from '@/components/SupabaseSetupNotice'
+import { GoogleGIcon, FacebookIcon } from '@/components/SocialIcons'
 import { SITE } from '@/data/site'
 import { DEFAULT_SETTINGS, type StoreSettings } from '@/lib/settings'
 
@@ -15,11 +16,19 @@ const OTP_LENGTH = 6
 const RESEND_SECONDS = 30
 
 export function LoginPage({ settings = DEFAULT_SETTINGS }: { settings?: StoreSettings }) {
-  const { sendOtp, verifyOtp, signInWithPassword, signUpWithPassword, sendPasswordReset, session } =
-    useAuth()
+  const {
+    sendOtp,
+    verifyOtp,
+    signInWithPassword,
+    signUpWithPassword,
+    sendPasswordReset,
+    signInWithOAuth,
+    session,
+  } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('next') ?? '/my-account'
+  const [oauthBusy, setOauthBusy] = useState<'google' | 'facebook' | null>(null)
 
   // Two ways in: a one-time code, or a classic password. Password is the
   // default because it's one step for returning customers.
@@ -39,6 +48,15 @@ export function LoginPage({ settings = DEFAULT_SETTINGS }: { settings?: StoreSet
   useEffect(() => {
     if (session) router.replace(redirectTo)
   }, [session, router, redirectTo])
+
+  // Google/Facebook sign-in failures come back as a redirect to this page
+  // with ?error=... (set by /auth/callback) — there's no other way to
+  // surface a problem from a flow that leaves the app entirely and returns.
+  useEffect(() => {
+    const oauthErr = searchParams.get('error')
+    if (oauthErr) setError(humanise(oauthErr))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (cooldown <= 0) return
@@ -87,6 +105,16 @@ export function LoginPage({ settings = DEFAULT_SETTINGS }: { settings?: StoreSet
     setBusy(false)
     if (error) return setError(humanise(error))
     router.replace(redirectTo)
+  }
+
+  const oauth = async (provider: 'google' | 'facebook') => {
+    setOauthBusy(provider)
+    setError(null)
+    setNotice(null)
+    const { error } = await signInWithOAuth(provider, redirectTo)
+    // Only reachable on failure — success navigates the whole page away.
+    setOauthBusy(null)
+    if (error) setError(humanise(error))
   }
 
   const forgotPassword = async () => {
@@ -237,6 +265,63 @@ export function LoginPage({ settings = DEFAULT_SETTINGS }: { settings?: StoreSet
           >
             {mode === 'otp' && step === 'otp' ? 'Enter code' : isSignUp ? 'Create account' : 'Sign in'}
           </h1>
+
+          {/* OAuth — a full-page redirect away and back, so nothing here needs
+              its own loading state beyond disabling the buttons mid-redirect. */}
+          {!(mode === 'otp' && step === 'otp') && (
+            <div className="mb-7">
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => oauth('google')}
+                  disabled={oauthBusy !== null}
+                  className="flex items-center justify-center gap-2 text-sm font-semibold transition-opacity hover:opacity-80"
+                  style={{
+                    height: 48,
+                    borderRadius: 10,
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-primary)',
+                    opacity: oauthBusy !== null ? 0.6 : 1,
+                  }}
+                >
+                  {oauthBusy === 'google' ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <GoogleGIcon size={16} />
+                  )}
+                  Google
+                </button>
+                <button
+                  type="button"
+                  onClick={() => oauth('facebook')}
+                  disabled={oauthBusy !== null}
+                  className="flex items-center justify-center gap-2 text-sm font-semibold transition-opacity hover:opacity-80"
+                  style={{
+                    height: 48,
+                    borderRadius: 10,
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-primary)',
+                    opacity: oauthBusy !== null ? 0.6 : 1,
+                  }}
+                >
+                  {oauthBusy === 'facebook' ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <FacebookIcon size={16} />
+                  )}
+                  Facebook
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3 mt-6">
+                <span aria-hidden style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                  or
+                </span>
+                <span aria-hidden style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+              </div>
+            </div>
+          )}
 
           {/* Method switch */}
           {!(mode === 'otp' && step === 'otp') && (
