@@ -193,6 +193,7 @@ export default function Footer({ codEnabled = DEFAULT_SETTINGS.codEnabled }: { c
               ['Contact', '/contact'],
               ['Terms of Service', '/terms-and-conditions'],
               ['Privacy Policy', '/privacy-policy-2'],
+              ['Data Deletion', '/data-deletion'],
             ].map(([label, href]) => (
               <Link
                 key={label}

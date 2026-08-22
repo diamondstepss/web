@@ -15,6 +15,7 @@ const CONTENT = [
   { path: 'return-policy', priority: 0.3, freq: 'yearly' as const },
   { path: 'terms-and-conditions', priority: 0.2, freq: 'yearly' as const },
   { path: 'privacy-policy-2', priority: 0.2, freq: 'yearly' as const },
+  { path: 'data-deletion', priority: 0.1, freq: 'yearly' as const },
 ]
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
