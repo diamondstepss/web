@@ -40,7 +40,7 @@ const nextConfig: NextConfig = {
       { source: '/compare', destination: '/shop', permanent: true },
       { source: '/best-selling-products', destination: '/shop', permanent: true },
       { source: '/featured', destination: '/shop', permanent: true },
-      { source: '/privacy-policy', destination: '/privacy-policy-2', permanent: true },
+      { source: '/privacy-policy-2', destination: '/privacy-policy', permanent: true },
 
       // ── Prototype paths, in case anything still links to them ──
       { source: '/account', destination: '/my-account', permanent: true },
@@ -49,7 +49,7 @@ const nextConfig: NextConfig = {
       { source: '/policies/shipping', destination: '/shipping-policy', permanent: true },
       { source: '/policies/returns', destination: '/return-policy', permanent: true },
       { source: '/policies/terms', destination: '/terms-and-conditions', permanent: true },
-      { source: '/policies/privacy', destination: '/privacy-policy-2', permanent: true },
+      { source: '/policies/privacy', destination: '/privacy-policy', permanent: true },
       { source: '/category/:slug*', destination: '/product-category/:slug*', permanent: true },
     ]
   },

@@ -25,7 +25,7 @@ export function DataDeletionPage() {
         <p>
           We reply to confirm we&apos;ve received the request, then complete the deletion and confirm
           again once it&apos;s done — within 30 days, same as any other privacy request under our{' '}
-          <a href="/privacy-policy-2" style={{ color: 'var(--accent)' }} className="underline">
+          <a href="/privacy-policy" style={{ color: 'var(--accent)' }} className="underline">
             Privacy Policy
           </a>
           .

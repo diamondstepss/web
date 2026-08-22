@@ -612,7 +612,7 @@ export function LoginPage({ settings = DEFAULT_SETTINGS }: { settings?: StoreSet
             <ShieldCheck size={14} style={{ color: 'var(--success)', flexShrink: 0, marginTop: 2 }} />
             <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
               Used only for sign-in and order updates. See our{' '}
-              <Link href="/privacy-policy-2" style={{ color: 'var(--accent)' }} className="underline">
+              <Link href="/privacy-policy" style={{ color: 'var(--accent)' }} className="underline">
                 Privacy Policy
               </Link>
               .

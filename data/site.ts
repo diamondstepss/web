@@ -84,6 +84,6 @@ export const POLICY_PAGES = [
   { slug: '/shipping-policy', label: 'Shipping Policy' },
   { slug: '/return-policy', label: 'Returns & Exchanges' },
   { slug: '/terms-and-conditions', label: 'Terms of Service' },
-  { slug: '/privacy-policy-2', label: 'Privacy Policy' },
+  { slug: '/privacy-policy', label: 'Privacy Policy' },
   { slug: '/data-deletion', label: 'Data Deletion' },
 ] as const
