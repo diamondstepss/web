@@ -7,9 +7,11 @@ import { ArrowLeft, PackageX, ExternalLink } from 'lucide-react'
 import type { DbProduct } from '@/lib/catalog'
 import {
   adminFetchProduct,
+  adminFetchBrands,
   createProduct,
   updateProduct,
   slugify,
+  normalizeBrand,
   fetchSizeStock,
   saveSizeStock,
 } from '@/lib/catalog-admin'
@@ -56,6 +58,13 @@ export default function ProductFormView({ productId }: { productId?: string }) {
   // replaced used to.
   const [sizeStock, setSizeStock] = useState<Record<string, string>>({})
   const [newSize, setNewSize] = useState('')
+  const [brands, setBrands] = useState<string[]>([])
+
+  useEffect(() => {
+    adminFetchBrands().then(setBrands).catch(() => {
+      /* datalist is a nice-to-have — the save-time normalization still runs without it */
+    })
+  }, [])
 
   useEffect(() => {
     if (!productId) return
@@ -118,7 +127,7 @@ export default function ProductFormView({ productId }: { productId?: string }) {
     setError(null)
     const payload = {
       title: f.title.trim(),
-      brand: f.brand.trim(),
+      brand: normalizeBrand(f.brand, brands),
       slug: f.slug.trim() || slugify(`${f.brand} ${f.title}`),
       price: Number(f.price),
       mrp: Number(f.mrp),
@@ -218,7 +227,19 @@ export default function ProductFormView({ productId }: { productId?: string }) {
                   <input required value={f.title} onChange={set('title')} className="adm-input" placeholder="Air Max 90 White" />
                 </AdminField>
                 <AdminField label="Brand">
-                  <input required value={f.brand} onChange={set('brand')} className="adm-input" placeholder="Nike" />
+                  <input
+                    required
+                    list="brand-options"
+                    value={f.brand}
+                    onChange={set('brand')}
+                    className="adm-input"
+                    placeholder="Nike"
+                  />
+                  <datalist id="brand-options">
+                    {brands.map((b) => (
+                      <option key={b} value={b} />
+                    ))}
+                  </datalist>
                 </AdminField>
               </div>
 

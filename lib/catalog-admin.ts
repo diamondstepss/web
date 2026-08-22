@@ -133,6 +133,20 @@ export async function adminFetchBrands(): Promise<string[]> {
   return [...new Set((data ?? []).map((r) => r.brand as string))].sort()
 }
 
+/**
+ * Brand is free text on the product form, not a picker — "Nike" and "nike"
+ * are otherwise indistinguishable to a typing admin but produce two entries
+ * everywhere brands are grouped (the filter dropdown, the storefront's brand
+ * strip). Matches case-insensitively against whatever's already in the
+ * catalog and reuses that exact casing; a genuinely new brand keeps whatever
+ * casing was typed, since there's no existing entry to defer to.
+ */
+export function normalizeBrand(input: string, existingBrands: string[]): string {
+  const trimmed = input.trim()
+  const existing = existingBrands.find((b) => b.toLowerCase() === trimmed.toLowerCase())
+  return existing ?? trimmed
+}
+
 /** Whole-catalog counts for the page header and the out-of-stock banner —
  *  these describe the catalog, not the current filtered page, so they're
  *  fetched separately rather than derived from whatever rows happen to be
