@@ -75,7 +75,9 @@ export function deriveFacets(products: Product[]): Facets {
   for (const p of products) {
     for (const c of p.categories ?? []) cats.set(c, (cats.get(c) ?? 0) + 1)
     if (p.brand) brands.set(p.brand, (brands.get(p.brand) ?? 0) + 1)
-    for (const s of p.sizes ?? []) sizes.set(s, (sizes.get(s) ?? 0) + 1)
+    for (const s of p.sizes ?? []) {
+      if (isSizeAvailable(p, s)) sizes.set(s, (sizes.get(s) ?? 0) + 1)
+    }
     if (p.price < priceMin) priceMin = p.price
     if (p.price > priceMax) priceMax = p.price
     if ((p.discount ?? 0) > maxDiscount) maxDiscount = p.discount ?? 0
@@ -108,6 +110,20 @@ export function isOutOfStock(p: Product): boolean {
   return typeof p.stock === 'number' && p.stock <= 0
 }
 
+/**
+ * Whether `size` is actually purchasable on `p`, not just declared in
+ * `p.sizes` — a product can be in stock overall with individual sizes sold
+ * out. Falls back to the product-level check when `sizeStock` wasn't fetched
+ * (only listings with a size filter embed it; see PRODUCT_SELECT_WITH_SIZE_STOCK
+ * in lib/catalog.ts).
+ */
+export function isSizeAvailable(p: Product, size: number): boolean {
+  if (!(p.sizes ?? []).includes(size)) return false
+  if (isOutOfStock(p)) return false
+  if (p.sizeStock) return (p.sizeStock[size] ?? 0) > 0
+  return true
+}
+
 /** Discount thresholds, trimmed to what the catalog can actually satisfy. */
 export function discountSteps(maxDiscount: number): number[] {
   return [10, 20, 30, 40, 50, 60].filter((d) => d <= maxDiscount)
@@ -117,7 +133,7 @@ export function applyFilters(products: Product[], f: Filters): Product[] {
   const out = products.filter((p) => {
     if (f.categories.length && !(p.categories ?? []).some((c) => f.categories.includes(c))) return false
     if (f.brands.length && !f.brands.includes(p.brand)) return false
-    if (f.sizes.length && !(p.sizes ?? []).some((s) => f.sizes.includes(s))) return false
+    if (f.sizes.length && !f.sizes.some((s) => isSizeAvailable(p, s))) return false
     if (f.minPrice !== null && p.price < f.minPrice) return false
     if (f.maxPrice !== null && p.price > f.maxPrice) return false
     if (f.minDiscount !== null && (p.discount ?? 0) < f.minDiscount) return false

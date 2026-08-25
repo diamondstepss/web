@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 }
 
 export default async function Page() {
-  const products = await getProducts()
+  const products = await getProducts({ withSizeStock: true })
   return (
     <Suspense fallback={<div style={{ minHeight: '60vh' }} />}>
       <SearchPage products={products} />

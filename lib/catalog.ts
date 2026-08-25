@@ -27,7 +27,7 @@ export interface DbProduct {
   updated_at: string
   /** Present only when the query embeds them — see PRODUCT_SELECT. */
   product_categories?: { categories: { slug: string } | null }[]
-  /** Present only on the single-product query — see PRODUCT_DETAIL_SELECT. */
+  /** Present only when the query embeds it — see PRODUCT_SELECT_WITH_SIZE_STOCK. */
   product_size_stock?: { size: string; stock: number }[]
 }
 
@@ -73,12 +73,14 @@ export function toProduct(row: DbProduct): Product {
 const PRODUCT_SELECT = '*,product_categories(categories(slug))'
 
 /**
- * The single-product page additionally needs per-size stock, to grey out
- * specific sold-out sizes in the picker — detail no listing card has any use
- * for, so it stays off the shared PRODUCT_SELECT rather than costing every
- * grid and rail an embed they'd throw away.
+ * The single-product page, and any listing with a size filter, additionally
+ * need per-size stock — the single-product page to grey out sold-out sizes in
+ * the picker, a filtered listing so selecting a size doesn't surface a product
+ * that's actually sold out in exactly that size. Most listings don't filter
+ * (home rails, related products, wishlist, cart upsell), so this stays opt-in
+ * rather than costing every grid an embed it would throw away.
  */
-const PRODUCT_DETAIL_SELECT = `${PRODUCT_SELECT},product_size_stock(size,stock)`
+const PRODUCT_SELECT_WITH_SIZE_STOCK = `${PRODUCT_SELECT},product_size_stock(size,stock)`
 
 const REST = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1`
 const KEY =
@@ -107,8 +109,9 @@ export async function rest<T>(path: string, revalidate = 60): Promise<T[]> {
   }
 }
 
-export async function getProducts(): Promise<Product[]> {
-  const rows = await rest<DbProduct>(`products?select=${PRODUCT_SELECT}&is_active=eq.true&order=position.asc`)
+export async function getProducts(opts: { withSizeStock?: boolean } = {}): Promise<Product[]> {
+  const select = opts.withSizeStock ? PRODUCT_SELECT_WITH_SIZE_STOCK : PRODUCT_SELECT
+  const rows = await rest<DbProduct>(`products?select=${select}&is_active=eq.true&order=position.asc`)
   return rows.map(toProduct)
 }
 
@@ -121,7 +124,7 @@ export async function getFeaturedProducts(): Promise<Product[]> {
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   const rows = await rest<DbProduct>(
-    `products?select=${PRODUCT_DETAIL_SELECT}&slug=eq.${encodeURIComponent(slug)}&limit=1`,
+    `products?select=${PRODUCT_SELECT_WITH_SIZE_STOCK}&slug=eq.${encodeURIComponent(slug)}&limit=1`,
   )
   return rows[0] ? toProduct(rows[0]) : null
 }
@@ -138,11 +141,15 @@ export async function getCategories(): Promise<DbCategory[]> {
  * tried `category_id=in.(select id from …)` first and fell back to this — that
  * attempt could never succeed and 400'd on every category page load.
  */
-export async function getProductsByCategory(slug: string): Promise<Product[]> {
+export async function getProductsByCategory(
+  slug: string,
+  opts: { withSizeStock?: boolean } = {},
+): Promise<Product[]> {
+  const select = opts.withSizeStock ? PRODUCT_SELECT_WITH_SIZE_STOCK : PRODUCT_SELECT
   const cats = await rest<DbCategory>(`categories?slug=eq.${encodeURIComponent(slug)}&limit=1`)
   if (!cats[0]) return []
   const links = await rest<{ products: DbProduct }>(
-    `product_categories?select=products(${PRODUCT_SELECT})&category_id=eq.${cats[0].id}`,
+    `product_categories?select=products(${select})&category_id=eq.${cats[0].id}`,
   )
   return links
     .map((l) => l.products)

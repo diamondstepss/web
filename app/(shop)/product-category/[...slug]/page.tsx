@@ -51,8 +51,8 @@ export default async function Page({ params }: { params: Promise<{ slug: string[
   const { slug } = await params
   const leaf = slug[slug.length - 1] ?? ''
   // Fall back to the full catalog for virtual categories like /sale or /new-arrivals.
-  const scoped = await getProductsByCategory(leaf)
-  const products = scoped.length ? scoped : await getProducts()
+  const scoped = await getProductsByCategory(leaf, { withSizeStock: true })
+  const products = scoped.length ? scoped : await getProducts({ withSizeStock: true })
   const label = labelFor(slug)
 
   return (

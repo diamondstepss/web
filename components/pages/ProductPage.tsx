@@ -195,6 +195,12 @@ export function ProductPage({
       setSizeError(true)
       return
     }
+    // The disabled attribute on sold-out size buttons is the real guard;
+    // this only covers selectedSize going stale (stock changing after pick).
+    if (selectedSize !== null && sizeSoldOut(selectedSize)) {
+      setSizeError(true)
+      return
+    }
     if (!incoming) return
     // Belt and braces on top of the disabled "+" button below — the real
     // guard against overselling is the checkout stock check, this just keeps
@@ -208,6 +214,10 @@ export function ProductPage({
 
   const handleBuyNow = () => {
     if (needsSize && selectedSize === null) {
+      setSizeError(true)
+      return
+    }
+    if (selectedSize !== null && sizeSoldOut(selectedSize)) {
       setSizeError(true)
       return
     }

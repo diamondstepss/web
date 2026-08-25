@@ -14,7 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function Page() {
   // Read from Postgres so anything the admin publishes appears here.
-  const products = await getProducts()
+  const products = await getProducts({ withSizeStock: true })
   return (
     // The filter sidebar reads useSearchParams, which opts its subtree out of
     // prerendering; the boundary keeps the rest of the page static.
