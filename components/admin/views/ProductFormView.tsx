@@ -27,8 +27,11 @@ import { AdminField, Panel, Eyebrow, ErrorNote, EmptyState, inr } from '@/compon
  * still be added by typing it into "Add a size" below.
  */
 const CANDIDATE_SIZES_BY_SYSTEM: Record<'UK' | 'EU' | 'US', string[]> = {
-  UK: ['5', '6', '7', '8', '9', '10', '11', '12'],
-  EU: ['38', '39', '40.5', '41', '42', '43', '44.5', '45', '46', '47'],
+  UK: ['2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
+  EU: [
+    '34.5', '35.5', '36', '37', '38', '39', '40', '40.5', '41', '42', '43',
+    '44', '44.5', '45', '46', '47',
+  ],
   US: ['6', '7', '8', '9', '10', '11', '12', '13'],
 }
 
