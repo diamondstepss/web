@@ -43,7 +43,7 @@ export async function generateMetadata({
   const settings = await getStoreSettings()
   return {
     title: `${label} — Buy Online`,
-    description: `Shop ${label} at Diamond Stepss. Genuine brands, UK 6 to 11, free shipping over ₹${settings.freeShippingOver}, COD available across India.`,
+    description: `Shop ${label} at Diamond Stepss. Genuine brands, EU 39 to 46, free shipping over ₹${settings.freeShippingOver}, COD available across India.`,
   }
 }
 

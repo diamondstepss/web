@@ -26,6 +26,7 @@ export interface StoreSettings {
   prepaidDiscountPct: number
   prepaidDiscountType: 'PERCENT' | 'FLAT'
   prepaidDiscountMinOrder: number
+  sizeSystem: 'UK' | 'EU' | 'US'
 }
 
 /** Used when the table is unreachable, so a page never renders a blank price. */
@@ -40,6 +41,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   prepaidDiscountPct: SITE.prepaidDiscountPct,
   prepaidDiscountType: SITE.prepaidDiscountType,
   prepaidDiscountMinOrder: SITE.prepaidDiscountMinOrder,
+  sizeSystem: 'EU',
 }
 
 const REST = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1`
@@ -57,6 +59,7 @@ interface Row {
   prepaid_discount_pct: number
   prepaid_discount_type: string
   prepaid_discount_min_order: number
+  size_system: string
 }
 
 /**
@@ -91,6 +94,11 @@ export async function getStoreSettings(): Promise<StoreSettings> {
       // columns have run — see the matching comment in lib/server/pricing.ts.
       prepaidDiscountType: r.prepaid_discount_type === 'FLAT' ? 'FLAT' : 'PERCENT',
       prepaidDiscountMinOrder: Number(r.prepaid_discount_min_order ?? 0),
+      // Coalesced for the same reason — reads before the migration that adds
+      // this column has run would otherwise get `undefined` as a system.
+      sizeSystem: (['UK', 'EU', 'US'] as const).includes(r.size_system as 'UK' | 'EU' | 'US')
+        ? (r.size_system as 'UK' | 'EU' | 'US')
+        : 'EU',
     }
   } catch (e) {
     console.error('[settings] fetch failed', e)

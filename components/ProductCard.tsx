@@ -99,7 +99,7 @@ export default function ProductCard({ product, compact }: ProductCardProps) {
                 onMouseEnter={() => setHoveredSize(s)}
                 onMouseLeave={() => setHoveredSize(null)}
               >
-                UK {s}
+                EU {s}
               </span>
             ))}
           </div>

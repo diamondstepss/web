@@ -128,7 +128,7 @@ export function FilterPanel({ filters, facets, onChange, showCategories = true }
       )}
 
       {facets.sizes.length > 0 && (
-        <Group title="Size (UK)">
+        <Group title="Size (EU)">
           <div className="flex flex-wrap gap-1.5">
             {facets.sizes.map((s) => {
               const on = filters.sizes.includes(s.value)
@@ -246,7 +246,7 @@ export function ActiveChips({
     })),
     ...filters.sizes.map((s) => ({
       key: `s-${s}`,
-      label: `UK ${s}`,
+      label: `EU ${s}`,
       remove: () => set({ sizes: filters.sizes.filter((x) => x !== s) }),
     })),
   ]

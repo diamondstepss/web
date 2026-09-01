@@ -380,6 +380,7 @@ export interface StoreSettings {
   prepaid_discount_pct: number
   prepaid_discount_type: 'PERCENT' | 'FLAT'
   prepaid_discount_min_order: number
+  size_system: 'UK' | 'EU' | 'US'
 }
 
 export async function fetchSettings(): Promise<StoreSettings | null> {

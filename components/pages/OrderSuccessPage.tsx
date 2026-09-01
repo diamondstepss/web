@@ -92,7 +92,7 @@ export function OrderSuccessPage() {
                     </p>
                     <p className="text-sm font-bold mt-0.5" style={{ color: 'var(--text-primary)' }}>{it.title}</p>
                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                      {it.size ? `Size UK ${it.size}` : ''}{it.qty > 1 ? ` · Qty ${it.qty}` : ''}
+                      {it.size ? `Size EU ${it.size}` : ''}{it.qty > 1 ? ` · Qty ${it.qty}` : ''}
                     </p>
                   </div>
                   <p className="text-sm font-black" style={{ fontFamily: 'var(--font-outfit)', color: 'var(--text-primary)' }}>

@@ -68,7 +68,7 @@ async function handle(req: NextRequest, { path }: { path: string[] }) {
       description:
         `[STUB — no AI service connected] Placeholder copy for the ${body.brand ?? ''} ` +
         `${body.title ?? ''}. The real service will describe what it can actually see in ` +
-        `the product photos${body.sizes?.length ? `, across UK ${body.sizes.join(', ')}` : ''}. ` +
+        `the product photos${body.sizes?.length ? `, across EU ${body.sizes.join(', ')}` : ''}. ` +
         `Do not save this to a live product.`,
       creditsCharged: 1,
       creditsRemaining: credits,

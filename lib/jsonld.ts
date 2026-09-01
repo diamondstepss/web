@@ -216,7 +216,7 @@ export function productJsonLd(
           additionalProperty: {
             '@type': 'PropertyValue',
             name: 'Size system',
-            value: 'UK',
+            value: 'EU',
           },
         }
       : {}),

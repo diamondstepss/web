@@ -14,20 +14,29 @@ import {
   normalizeBrand,
   fetchSizeStock,
   saveSizeStock,
+  fetchSettings,
 } from '@/lib/catalog-admin'
 import GalleryUploader from '@/components/admin/GalleryUploader'
 import AiDescriptionButton from '@/components/admin/AiDescriptionButton'
 import { AdminField, Panel, Eyebrow, ErrorNote, EmptyState, inr } from '@/components/admin/shared'
 
-/** Offered as toggleable rows on a new footwear product. Anything outside
- *  this range can still be added by typing it into "Add a size" below. */
-const CANDIDATE_SIZES = ['5', '6', '7', '8', '9', '10', '11', '12']
+/**
+ * Offered as toggleable rows on a new footwear product, and as the default
+ * stocked range — keyed by the store's size system (Admin → Shipping →
+ * Catalog), not hardcoded to one scale. Anything outside a candidate list can
+ * still be added by typing it into "Add a size" below.
+ */
+const CANDIDATE_SIZES_BY_SYSTEM: Record<'UK' | 'EU' | 'US', string[]> = {
+  UK: ['5', '6', '7', '8', '9', '10', '11', '12'],
+  EU: ['38', '39', '40.5', '41', '42', '43', '44.5', '45', '46', '47'],
+  US: ['6', '7', '8', '9', '10', '11', '12', '13'],
+}
 
-/** A brand-new product defaults to the range actually stocked historically
- *  (per the old comma-list placeholder this replaced), not every candidate. */
-const DEFAULT_SIZE_STOCK: Record<string, string> = Object.fromEntries(
-  ['6', '7', '8', '9', '10', '11'].map((s) => [s, '0']),
-)
+const DEFAULT_SIZES_BY_SYSTEM: Record<'UK' | 'EU' | 'US', string[]> = {
+  UK: ['6', '7', '8', '9', '10', '11'],
+  EU: ['39', '40.5', '42', '43', '44.5', '46'],
+  US: ['7', '8', '9', '10', '11', '12'],
+}
 
 /**
  * Create and edit both live at a real URL (/admin/products/new and
@@ -59,12 +68,26 @@ export default function ProductFormView({ productId }: { productId?: string }) {
   const [sizeStock, setSizeStock] = useState<Record<string, string>>({})
   const [newSize, setNewSize] = useState('')
   const [brands, setBrands] = useState<string[]>([])
+  const [sizeSystem, setSizeSystem] = useState<'UK' | 'EU' | 'US'>('EU')
 
   useEffect(() => {
     adminFetchBrands().then(setBrands).catch(() => {
       /* datalist is a nice-to-have — the save-time normalization still runs without it */
     })
   }, [])
+
+  useEffect(() => {
+    fetchSettings()
+      .then((s) => s && setSizeSystem(s.size_system))
+      .catch(() => {
+        /* the candidate list just falls back to EU — the free-text "Add a size" still works */
+      })
+  }, [])
+
+  const candidateSizes = CANDIDATE_SIZES_BY_SYSTEM[sizeSystem]
+  const defaultSizeStock: Record<string, string> = Object.fromEntries(
+    DEFAULT_SIZES_BY_SYSTEM[sizeSystem].map((s) => [s, '0']),
+  )
 
   useEffect(() => {
     if (!productId) return
@@ -311,7 +334,7 @@ export default function ProductFormView({ productId }: { productId?: string }) {
                   rather than an empty text box means the shop owner is never
                   guessing what a blank field does. */}
               <AdminField
-                label="Sizes & stock (UK)"
+                label={`Sizes & stock (${sizeSystem})`}
                 hint={
                   isAccessory
                     ? 'Accessories are sold one-size, so no size is asked for at checkout.'
@@ -322,14 +345,14 @@ export default function ProductFormView({ productId }: { productId?: string }) {
                   <input
                     type="checkbox"
                     checked={isAccessory}
-                    onChange={(e) => setSizeStock(e.target.checked ? {} : DEFAULT_SIZE_STOCK)}
+                    onChange={(e) => setSizeStock(e.target.checked ? {} : defaultSizeStock)}
                   />
                   This is an accessory — one size, no size picker
                 </label>
 
                 {!isAccessory && (
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {[...new Set([...CANDIDATE_SIZES, ...Object.keys(sizeStock)])]
+                    {[...new Set([...candidateSizes, ...Object.keys(sizeStock)])]
                       .sort((a, b) => Number(a) - Number(b))
                       .map((s) => {
                         const included = s in sizeStock
@@ -345,7 +368,7 @@ export default function ProductFormView({ productId }: { productId?: string }) {
                               onChange={() => toggleSize(s)}
                               style={{ accentColor: 'var(--adm-accent)' }}
                             />
-                            <span className="text-[12px] w-4 shrink-0" style={{ color: 'var(--adm-text)' }}>
+                            <span className="text-[12px] w-8 shrink-0" style={{ color: 'var(--adm-text)' }}>
                               {s}
                             </span>
                             <input

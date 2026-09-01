@@ -104,7 +104,7 @@ const APP: Record<string, { label: string; mail: Mail }> = {
       phone: '+91 98765 43210',
       subject: 'Size availability',
       message:
-        'Hi, do you have the tan Chelsea boots in UK 11?\nI can come to the shop this Saturday if you do.',
+        'Hi, do you have the tan Chelsea boots in EU 46?\nI can come to the shop this Saturday if you do.',
     }),
   },
 }

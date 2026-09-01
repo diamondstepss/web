@@ -68,7 +68,7 @@ export function faqGroups(s: StoreSettings = DEFAULT_SETTINGS): FaqGroup[] {
     items: [
       {
         q: 'Which size should I order?',
-        a: 'We list everything in UK sizes 6 to 11. The Size Guide has a UK/EU/US/cm conversion table and instructions for measuring your foot at home. If you are between sizes, size up.',
+        a: 'We list everything in EU sizes 39 to 46. The Size Guide has a UK/EU/US/cm conversion table and instructions for measuring your foot at home. If you are between sizes, size up.',
       },
       {
         q: 'How do I return or exchange something?',

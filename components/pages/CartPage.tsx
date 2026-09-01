@@ -125,7 +125,7 @@ export function CartPage({
                   </Link>
                   {l.size && (
                     <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                      Size UK {l.size}
+                      Size EU {l.size}
                     </p>
                   )}
 

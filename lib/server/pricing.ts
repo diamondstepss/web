@@ -146,7 +146,7 @@ export async function priceOrder(
     // A sized line checks that size's own count; a sizeless one (an
     // accessory, or a legacy line with no size) checks the product total.
     const available = l.size !== null ? stockBySize.get(`${p.id}:${l.size}`) ?? 0 : (p.stock as number)
-    const label = l.size ? `"${p.title}" in UK ${l.size}` : `"${p.title}"`
+    const label = l.size ? `"${p.title}" in EU ${l.size}` : `"${p.title}"`
     if (available < qty) {
       throw new CheckoutError(available === 0 ? `${label} just sold out.` : `Only ${available} left of ${label}.`)
     }

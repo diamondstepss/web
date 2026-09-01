@@ -75,7 +75,7 @@ export function SizeGuidePage() {
                 <table className="w-full text-sm" style={{ borderCollapse: 'collapse', minWidth: 460 }}>
                   <thead>
                     <tr style={{ background: 'var(--accent)' }}>
-                      {['UK', 'EU', 'US', 'Foot length (cm)'].map((h) => (
+                      {['EU', 'UK', 'US', 'Foot length (cm)'].map((h) => (
                         <th
                           key={h}
                           className="px-5 py-3.5 text-left text-xs font-black uppercase tracking-widest text-white"
@@ -99,10 +99,10 @@ export function SizeGuidePage() {
                           className="px-5 py-3.5 font-black"
                           style={{ color: 'var(--accent)', fontFamily: 'Outfit' }}
                         >
-                          UK {r.uk}
+                          EU {r.eu}
                         </td>
                         <td className="px-5 py-3.5" style={{ color: 'var(--text-primary)' }}>
-                          {r.eu}
+                          {r.uk}
                         </td>
                         <td className="px-5 py-3.5" style={{ color: 'var(--text-primary)' }}>
                           {r.us}
@@ -117,7 +117,7 @@ export function SizeGuidePage() {
               </div>
 
               <p className="text-xs mt-4 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                All products on this site are listed in <strong style={{ color: 'var(--text-primary)' }}>UK sizes</strong>.
+                All products on this site are listed in <strong style={{ color: 'var(--text-primary)' }}>EU sizes</strong>.
                 Conversions are approximate and can vary slightly between brands — match the foot-length column for
                 the most reliable result.
               </p>

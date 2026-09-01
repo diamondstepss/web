@@ -19,7 +19,7 @@ import { MENS_SIZES, WOMENS_SIZES, FIT_NOTES } from '@/data/sizes'
 export default function SizeGuideModal({
   open,
   onClose,
-  /** Sizes this product actually stocks, highlighted in the table. */
+  /** Sizes (EU — the store's size system) this product actually stocks, highlighted in the table. */
   availableSizes = [],
 }: {
   open: boolean
@@ -113,7 +113,7 @@ export default function SizeGuideModal({
             <table className="w-full text-sm" style={{ borderCollapse: 'collapse', minWidth: 420 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['UK', 'EU', 'US', 'Foot length'].map((h) => (
+                  {['EU', 'UK', 'US', 'Foot length'].map((h) => (
                     <th
                       key={h}
                       className="text-left px-3 py-2.5 text-[10px] font-black uppercase tracking-widest"
@@ -127,7 +127,7 @@ export default function SizeGuideModal({
               <tbody>
                 {rows.map((r) => {
                   // Highlight the rows this product can actually be bought in.
-                  const stocked = availableSizes.includes(Number(r.uk))
+                  const stocked = availableSizes.includes(Number(r.eu))
                   return (
                     <tr
                       key={r.uk}
@@ -140,9 +140,9 @@ export default function SizeGuideModal({
                         className="px-3 py-2.5 font-bold tabular-nums"
                         style={{ color: stocked ? 'var(--accent)' : 'var(--text-primary)' }}
                       >
-                        UK {r.uk}
+                        EU {r.eu}
                       </td>
-                      <td className="px-3 py-2.5 tabular-nums" style={{ color: 'var(--text-muted)' }}>{r.eu}</td>
+                      <td className="px-3 py-2.5 tabular-nums" style={{ color: 'var(--text-muted)' }}>{r.uk}</td>
                       <td className="px-3 py-2.5 tabular-nums" style={{ color: 'var(--text-muted)' }}>{r.us}</td>
                       <td className="px-3 py-2.5 tabular-nums" style={{ color: 'var(--text-muted)' }}>{r.cm} cm</td>
                     </tr>

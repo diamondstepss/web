@@ -2,7 +2,7 @@
  * Size conversion chart.
  *
  * Shared by the /size-guide page and the modal on product pages, so the two can
- * never drift apart. UK is our master scale — every product is listed in UK
+ * never drift apart. EU is our master scale — every product is listed in EU
  * sizes and the storefront never displays anything else as the primary size.
  */
 

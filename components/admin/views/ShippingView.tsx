@@ -95,6 +95,26 @@ export default function ShippingView() {
           </Panel>
 
           <Panel className="p-5 adm-rise adm-rise-2">
+            <Eyebrow className="mb-4">Catalog</Eyebrow>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <AdminField
+                label="Size system"
+                hint="Sizes on new and edited products are entered in this scale. Doesn't convert sizes already saved."
+              >
+                <select
+                  value={s.size_system}
+                  onChange={(e) => setS({ ...s, size_system: e.target.value as 'UK' | 'EU' | 'US' })}
+                  className="adm-input"
+                >
+                  <option value="EU">EU</option>
+                  <option value="UK">UK</option>
+                  <option value="US">US</option>
+                </select>
+              </AdminField>
+            </div>
+          </Panel>
+
+          <Panel className="p-5 adm-rise adm-rise-2">
             <Eyebrow className="mb-4">Cash on delivery</Eyebrow>
 
             <div className="space-y-2.5 mb-5">

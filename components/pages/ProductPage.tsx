@@ -564,7 +564,7 @@ export function ProductPage({
                   knownStock > 0 &&
                   knownStock <= 5 && (
                     <p className="mt-2 text-xs font-medium" style={{ color: 'var(--warning)' }}>
-                      ⚠ Only {knownStock} left in UK {selectedSize}
+                      ⚠ Only {knownStock} left in EU {selectedSize}
                     </p>
                   )
                 : typeof incoming?.stock === 'number' && incoming.stock > 0 && incoming.stock <= 5 && (
@@ -884,7 +884,7 @@ export function ProductPage({
             style={{ background: 'var(--surface)', borderRadius: '12px 12px 0 0' }}
           >
             <h3 className="font-black text-base uppercase mb-4" style={{ fontFamily: 'Outfit' }}>
-              SELECT SIZE (UK)
+              SELECT SIZE (EU)
             </h3>
             <div className="grid grid-cols-6 gap-2 mb-6">
               {sizes.map((s) => {

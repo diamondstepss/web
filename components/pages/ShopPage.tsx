@@ -16,8 +16,8 @@ export function ShopPage({ products: incoming = [] }: { products?: Product[] }) 
   // The hero lede quoted fixed figures that drifted from the catalog; derive it.
   const lede =
     incoming.length > 0
-      ? `${facets.brands.length} brand${facets.brands.length === 1 ? '' : 's'}, UK ${facets.sizes[0]?.value ?? 6} to ${
-          facets.sizes[facets.sizes.length - 1]?.value ?? 11
+      ? `${facets.brands.length} brand${facets.brands.length === 1 ? '' : 's'}, EU ${facets.sizes[0]?.value ?? 39} to ${
+          facets.sizes[facets.sizes.length - 1]?.value ?? 46
         }, ${inr(facets.priceMin)} to ${inr(facets.priceMax)}.`
       : 'Our full catalog.'
 

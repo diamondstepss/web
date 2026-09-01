@@ -78,7 +78,7 @@ function itemRows(
       <td style="padding:12px 0;border-bottom:1px solid ${C.line}">
         <span style="font-family:${BODY};font-size:10px;color:${C.muted};text-transform:uppercase;letter-spacing:0.12em">${esc(i.brand)}</span><br>
         <span style="font-family:${BODY};font-size:14px;color:${C.ink};font-weight:600">${esc(i.title)}</span><br>
-        <span style="font-family:${BODY};font-size:12px;color:${C.muted}">${i.size ? `Size UK ${esc(String(i.size))}` : 'One size'}${i.qty > 1 ? ` · Qty ${i.qty}` : ''}</span>
+        <span style="font-family:${BODY};font-size:12px;color:${C.muted}">${i.size ? `Size EU ${esc(String(i.size))}` : 'One size'}${i.qty > 1 ? ` · Qty ${i.qty}` : ''}</span>
       </td>
       <td align="right" style="padding:12px 0;border-bottom:1px solid ${C.line};font-family:${BODY};font-size:14px;font-weight:700;color:${C.ink}">${inr(i.price * i.qty)}</td>
     </tr>`,
